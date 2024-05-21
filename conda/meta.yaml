@@ -1,0 +1,38 @@
+
+{% set pyproject = load_file_data('pyproject.toml') %}
+{% set poetry = pyproject.get('tool', {}).get('poetry') %}
+
+package:
+    name: {{ poetry.get('name') }}
+    version: {{ poetry.get('version') }}
+
+source:
+    path: ../
+
+build:
+    # Remove comment from line here below, if your package is pure Python
+    # noarch: python
+    number: '0'
+    script: "{{ PYTHON }} -m pip install --no-deps --ignore-installed . -vv || exit 1"
+
+requirements:
+    build:
+        - python
+        - setuptools
+
+    run:
+        - python
+        # dependencies are defined in pyproject.toml
+        {% for dep in poetry.get('dependencies') %}
+        - {{ dep.lower() }}
+        {% endfor %}
+
+about:
+    home: {{ poetry.get('repository') }}
+    license_file: LICENSE
+    summary: {{ poetry.get('description') }}
+    doc_url: {{ poetry.get('documentation') }}
+
+extra:
+    maintainers:
+        - {{ poetry.get('authors') }}
