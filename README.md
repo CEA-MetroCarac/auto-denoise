@@ -1,4 +1,4 @@
-# auto-denoise
+# Auto-Denoise
 
 [![ci](https://github.com/CEA-MetroCarac/auto-denoise/workflows/ci/badge.svg)](https://github.com/CEA-MetroCarac/auto-denoise/actions?query=workflow%3Aci)
 [![documentation](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?style=flat)](https://CEA-MetroCarac.github.io/auto-denoise/)
@@ -10,7 +10,7 @@ Usupervised and self-supervised CNN denoising methods.
 
 ## Getting Started
 
-It takes a few steps to setup auto-denoise on your machine. We recommend installing
+It takes a few steps to setup Auto-Denoise on your machine. We recommend installing
 [Anaconda package manager](https://www.anaconda.com/download/) or the more compact
 [Miniconda](https://docs.anaconda.com/free/miniconda/index.html) for Python 3.
 
@@ -35,7 +35,7 @@ If you are on jupyter, and don't have the rights to install packages system-wide
 
 ### Installing from source
 
-To install auto-denoise, simply clone this github.com project with either:
+To install Auto-Denoise, simply clone this github.com project with either:
 ```bash
 git clone https://github.com/CEA-MetroCarac/auto-denoise.git auto-denoise
 ```

@@ -1,4 +1,4 @@
-site_name: "auto-denoise"
+site_name: "Auto-Denoise"
 site_description: "Usupervised and self-supervised CNN denoising methods."
 site_url: "https://CEA-MetroCarac.github.io/auto-denoise"
 repo_url: "https://github.com/CEA-MetroCarac/auto-denoise"
@@ -48,6 +48,6 @@ plugins:
     html_report_dir: build/coverage
 - mkdocstrings:
     watch:
-    - src/auto_denoise
+    - src/autoden
 - macros:
     module_name: docs/macros

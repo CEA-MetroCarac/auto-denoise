@@ -13,7 +13,7 @@ repository = "https://github.com/CEA-MetroCarac/auto-denoise"
 homepage = "https://github.com/CEA-MetroCarac/auto-denoise"
 documentation = "https://CEA-MetroCarac.github.com.io/auto-denoise/"
 keywords = []
-packages = [ { include = "auto_denoise", from = "src" } ]
+packages = [ { include = "autoden", from = "src" } ]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
@@ -55,7 +55,7 @@ mkdocs-material = ">=6.2.7"
 mkdocstrings = ">=0.16.2"
 
 [tool.poetry.scripts]
-auto-denoise = "auto_denoise.cli:main"
+autoden = "autoden.cli:main"
 
 [tool.black]
 line-length = 127
@@ -68,5 +68,5 @@ multi_line_output = 3
 force_single_line = false
 balanced_wrapping = true
 default_section = "THIRDPARTY"
-known_first_party = "auto_denoise"
+known_first_party = "autoden"
 include_trailing_comma = true

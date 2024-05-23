@@ -1,1 +1,1 @@
-::: auto_denoise.cli
+::: autoden.cli

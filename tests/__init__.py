@@ -1,4 +1,4 @@
-"""Tests suite for `auto_denoise`."""
+"""Tests suite for `autoden`."""
 
 from pathlib import Path
 
