@@ -1,7 +1,7 @@
 """
 Auto-Denoise package.
 
-Usupervised and self-supervised CNN denoising methods.
+Unsupervised and self-supervised CNN denoising methods.
 """
 
 from typing import List

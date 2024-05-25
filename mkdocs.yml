@@ -1,5 +1,5 @@
 site_name: "Auto-Denoise"
-site_description: "Usupervised and self-supervised CNN denoising methods."
+site_description: "Unsupervised and self-supervised CNN denoising methods."
 site_url: "https://CEA-MetroCarac.github.io/auto-denoise"
 repo_url: "https://github.com/CEA-MetroCarac/auto-denoise"
 repo_name: "CEA-MetroCarac/auto-denoise"

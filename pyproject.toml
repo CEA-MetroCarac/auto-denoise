@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "auto-denoise"
 version = "0.1.0"
-description = "Usupervised and self-supervised CNN denoising methods."
+description = "Unsupervised and self-supervised CNN denoising methods."
 authors = ["Nicola VIGANO <nicola.vigano@cea.fr>"]
 license = "MIT License"
 readme = "README.md"

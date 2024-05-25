@@ -6,7 +6,7 @@
 [![gitter](https://badges.gitter.im/join%20chat.svg)](https://gitter.im/auto-denoise/community)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Usupervised and self-supervised CNN denoising methods.
+Unsupervised and self-supervised CNN denoising methods.
 
 ## Getting Started
 
