@@ -261,15 +261,23 @@ class Denoiser:
         dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
         dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
 
-        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo)
+        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
+        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
             self._plot_loss_curves(loss_trn, loss_tst, f"Supervised {algo.upper()}")
 
-    def _train(self, dl_trn: DataLoader, dl_tst: DataLoader, epochs: int, algo: str = "adam") -> tuple[NDArray, NDArray]:
+    def _train(
+        self,
+        dl_trn: DataLoader,
+        dl_tst: DataLoader,
+        epochs: int,
+        algo: str = "adam",
+        regularizer: losses.LossRegularizer | None = None,
+    ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        loss_trn_fn = losses.MSELoss_TV(lambda_val=self.reg_val, reduction="sum")
+        loss_trn_fn = pt.nn.MSELoss(reduction="sum")
         loss_tst_fn = pt.nn.MSELoss(reduction="sum")
         optim = _create_optimizer(self.net, algo=algo)
 
@@ -290,8 +298,10 @@ class Denoiser:
                 # tgt_trn = tgt_trn.to(self.device, non_blocking=True)
 
                 optim.zero_grad()
-                output = self.net(inp_trn)
-                loss_trn = loss_trn_fn(output, tgt_trn)
+                out_trn = self.net(inp_trn)
+                loss_trn = loss_trn_fn(out_trn, tgt_trn)
+                if regularizer is not None:
+                    loss_trn += regularizer(out_trn)
                 loss_trn.backward()
 
                 loss_trn_val += loss_trn.item()
@@ -308,8 +318,8 @@ class Denoiser:
                     # inp_tst = inp_tst.to(self.device, non_blocking=True)
                     # tgt_tst = tgt_tst.to(self.device, non_blocking=True)
 
-                    output = self.net(inp_tst)
-                    loss_tst = loss_tst_fn(output, tgt_tst)
+                    out_tst = self.net(inp_tst)
+                    loss_tst = loss_tst_fn(out_tst, tgt_tst)
 
                     loss_tst_val += loss_tst.item()
 
@@ -462,7 +472,8 @@ class N2N(Denoiser):
         dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
         dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
 
-        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo)
+        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
+        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
             self._plot_loss_curves(loss_trn, loss_tst, f"Self-supervised N2N {algo.upper()}")
@@ -519,8 +530,9 @@ class N2V(Denoiser):
         dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
         dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
 
+        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_n2v(
-            dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo
+            dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo, regularizer=reg
         )
 
         self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
@@ -533,10 +545,10 @@ class N2V(Denoiser):
         mask_shape: int | Sequence[int] | NDArray,
         ratio_blind_spot: float,
         algo: str = "adam",
+        regularizer: losses.LossRegularizer | None = None,
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        # loss_trn_fn = models.MSELoss_TV(lambda_val=self.reg_tv_val, reduction="sum")
         loss_trn_fn = pt.nn.MSELoss(reduction="sum")
         loss_tst_fn = pt.nn.MSELoss(reduction="sum")
         optim = _create_optimizer(self.net, algo=algo)
@@ -569,8 +581,8 @@ class N2V(Denoiser):
                 out_to_check = out_trn[:, :, to_check[0], to_check[1]].flatten()
                 ref_to_check = inp_trn[:, :, to_check[0], to_check[1]].flatten()
                 loss_trn = loss_trn_fn(out_to_check, ref_to_check)
-                if self.reg_val is not None:
-                    loss_trn += losses.LossTV(self.reg_val, reduction="sum")(out_trn)
+                if regularizer is not None:
+                    loss_trn += regularizer(out_trn)
                 loss_trn.backward()
 
                 loss_trn_val += loss_trn.item()
@@ -633,7 +645,7 @@ class DIP(Denoiser):
         self, tgt: NDArray, epochs: int, inp: NDArray | None = None, num_tst_ratio: float = 0.2, algo: str = "adam"
     ) -> NDArray:
         if inp is None:
-            tmp_inp = inp = np.random.normal(size=tgt.shape, scale=0.25).astype(tgt.dtype)
+            tmp_inp = inp = np.random.normal(size=tgt.shape[-2:], scale=0.25).astype(tgt.dtype)
             self.data_scaling_inp = 1.0
             self.data_bias_inp = 0.0
         else:
@@ -655,7 +667,8 @@ class DIP(Denoiser):
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
         mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
 
-        losses_trn, losses_tst = self._train_dip(tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo)
+        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
+        losses_trn, losses_tst = self._train_dip(tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
             self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
@@ -663,7 +676,13 @@ class DIP(Denoiser):
         return inp
 
     def _train_dip(
-        self, inp: NDArray, tgt: NDArray, mask_trn: NDArray, epochs: int, algo: str = "adam"
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        mask_trn: NDArray,
+        epochs: int,
+        algo: str = "adam",
+        regularizer: losses.LossRegularizer | None = None,
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
@@ -689,18 +708,22 @@ class DIP(Denoiser):
             # Train
             optim.zero_grad()
             out_t = self.net(inp_t)
-            out_trn = out_t[0, 0][mask_trn_t]
+            out_t_mask = out_t[0, 0]
+            if tgt.ndim == 3:
+                out_t_mask = pt.tile(out_t_mask[None, :, :], [tgt.shape[-3], 1, 1])
+
+            out_trn = out_t_mask[mask_trn_t]
 
             loss_trn = loss_trn_fn(out_trn, tgt_trn)
-            if self.reg_val is not None:
-                loss_trn += losses.LossTGV(self.reg_val, reduction="mean")(out_t)
+            if regularizer is not None:
+                loss_trn += regularizer(out_t)
             loss_trn.backward()
 
             losses_trn.append(loss_trn.item())
             optim.step()
 
             # Test
-            out_tst = out_t[0, 0][mask_tst_t]
+            out_tst = out_t_mask[mask_tst_t]
             loss_tst = loss_tst_fn(out_tst, tgt_tst)
             losses_tst.append(loss_tst.item())
 

@@ -11,7 +11,11 @@ def _differentiate(inp: pt.Tensor, dim: int) -> pt.Tensor:
     return pt.concatenate((diff, inp.index_select(index=pt.tensor(inp.shape[dim] - 1, device=inp.device), dim=dim)), dim=dim)
 
 
-class LossTV(nn.MSELoss):
+class LossRegularizer(nn.MSELoss):
+    """Base class for the regularizer losses."""
+
+
+class LossTV(LossRegularizer):
     """Total Variation loss function."""
 
     def __init__(
@@ -50,7 +54,7 @@ class LossTV(nn.MSELoss):
 
 
 class LossTGV(LossTV):
-    """Total General Variation loss function."""
+    """Total Generalized Variation loss function."""
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute total variation statistics on current batch."""
@@ -68,25 +72,3 @@ class LossTGV(LossTV):
             jac_val = pt.stack([d.abs() for d in diffdiffs], dim=0).sum(dim=0)
 
         return self.lambda_val * (tv_val.sum(axes).mean() + jac_val.sum(axes).mean() / 4)
-
-
-class MSELoss_TV(nn.MSELoss):
-    def __init__(self, lambda_val: float | None = None, size_average=None, reduce=None, reduction: str = "mean") -> None:
-        super().__init__(size_average, reduce, reduction)
-        if lambda_val is None:
-            self.loss_tv = None
-        else:
-            self.loss_tv = LossTV(lambda_val)
-
-    def forward(self, input: pt.Tensor, target: pt.Tensor, img: pt.Tensor | None = None) -> pt.Tensor:
-        loss_val = super().forward(input, target)
-
-        if self.loss_tv is not None:
-            if img is not None:
-                loss_tv_val = self.loss_tv(img)
-            else:
-                loss_tv_val = self.loss_tv(input)
-
-            loss_val = loss_val + loss_tv_val
-
-        return loss_val
