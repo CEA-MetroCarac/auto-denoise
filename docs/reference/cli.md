@@ -1,1 +1,0 @@
-::: autoden.cli

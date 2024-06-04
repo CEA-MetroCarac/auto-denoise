@@ -9,23 +9,34 @@ nav:
 - Home:
   - Overview: index.md
   - Changelog: changelog.md
-  - Credits: credits.md
   - License: license.md
 - Code Reference:
+  - algorithms.py: reference/algorithms.md
+  - datasets.py: reference/datasets.md
+  - losses.py: reference/losses.md
+  - models:
+    - config.py: reference/models/config.md
+    - dncnn.py: reference/models/dncnn.md
+    - msd.py: reference/models/msd.md
+    - unet.py: reference/models/unet.md
   - cli.py: reference/cli.md
 - Development:
   - Contributing: contributing.md
   - Code of Conduct: code_of_conduct.md
-  - Coverage report: coverage.md
 
 theme:
   name: material
   features:
   - navigation.tabs
   palette:
-    scheme: slate
-    primary: teal
-    accent: purple
+  - scheme: blue
+    toggle:
+      icon: material/brightness-7
+      name: Switch to dark mode
+  - scheme: slate
+    toggle:
+      icon: material/brightness-4
+      name: Switch to light mode
 
 extra_css:
 - css/mkdocstrings.css
@@ -44,10 +55,9 @@ markdown_extensions:
 
 plugins:
 - search
-- coverage:
-    html_report_dir: build/coverage
-- mkdocstrings:
-    watch:
-    - src/autoden
+- mkdocstrings
 - macros:
     module_name: docs/macros
+- gen-files:
+    scripts:
+      - gen_doc_stubs.py
