@@ -693,7 +693,7 @@ class DIP(Denoiser):
 
             loss_trn = loss_trn_fn(out_trn, tgt_trn)
             if self.reg_val is not None:
-                loss_trn += losses.LossST(self.reg_val, reduction="mean")(out_t)
+                loss_trn += losses.LossTGV(self.reg_val, reduction="mean")(out_t)
             loss_trn.backward()
 
             losses_trn.append(loss_trn.item())
