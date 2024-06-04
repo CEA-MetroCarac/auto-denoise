@@ -1,5 +1,5 @@
 """
-High level definition of self architectures.
+High level definition of CNN architectures.
 
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
@@ -19,7 +19,7 @@ from .unet import UNet
 
 
 class NetworkParams(ABC):
-    """Store self parameters."""
+    """Abstract base class for storing network parameters."""
 
     n_channels_in: int
     n_channels_out: int
@@ -70,6 +70,21 @@ class NetworkParamsMSD(NetworkParams):
         n_features: int = 1,
         dilations: Sequence[int] | NDArray[np.integer] = np.arange(1, 10),
     ) -> None:
+        """Initialize the MS-D network parameters definition.
+
+        Parameters
+        ----------
+        n_channels_in : int, optional
+            Number of input channels, by default 1.
+        n_channels_out : int, optional
+            Number of output channels, by default 1.
+        n_layers : int, optional
+            Number of layers in the network, by default 80.
+        n_features : int, optional
+            Number of features, by default 1.
+        dilations : Sequence[int] | NDArray[np.integer], optional
+            Dilation values for the network, by default np.arange(1, 10).
+        """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
         self.dilations = dilations
@@ -115,6 +130,25 @@ class NetworkParamsUNet(NetworkParams):
         bilinear: bool = True,
         pad_mode: str = "replicate",
     ) -> None:
+        """Initialize the UNet network parameters definition.
+
+        Parameters
+        ----------
+        n_channels_in : int, optional
+            Number of input channels. Default is 1.
+        n_channels_out : int, optional
+            Number of output channels. Default is 1.
+        n_levels : int, optional
+            Number of levels in the UNet. Default is 3.
+        n_features : int, optional
+            Number of features in the UNet. Default is 32.
+        n_channels_skip : int, optional
+            Number of skip connections channels. Default is None.
+        bilinear : bool, optional
+            Whether to use bilinear interpolation. Default is True.
+        pad_mode : str, optional
+            Padding mode for convolutional layers. Default is "replicate".
+        """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_levels = n_levels
         self.n_channels_skip = n_channels_skip
@@ -152,6 +186,19 @@ class NetworkParamsDnCNN(NetworkParams):
     n_layers: int
 
     def __init__(self, n_channels_in: int = 1, n_channels_out: int = 1, n_layers: int = 20, n_features: int = 64) -> None:
+        """Initialize the DnCNN network parameters definition.
+
+        Parameters
+        ----------
+        n_channels_in : int, optional
+            Number of input channels. Default is 1.
+        n_channels_out : int, optional
+            Number of output channels. Default is 1.
+        n_layers : int, optional
+            Number of layers. Default is 20.
+        n_features : int, optional
+            Number of features. Default is 64.
+        """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
 

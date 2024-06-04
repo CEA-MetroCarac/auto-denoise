@@ -1,4 +1,5 @@
 """
+Data losses definitions.
 """
 
 import torch as pt

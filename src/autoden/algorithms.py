@@ -1,5 +1,5 @@
 """
-Implementation of Noise2Noise.
+Implementation of various unsupervised and self-supervised denoising methods.
 """
 
 import copy as cp
@@ -11,8 +11,9 @@ import torch as pt
 from numpy.typing import NDArray
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from . import datasets, models, losses
-from .models.config import NetworkParams, NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet
+from autoden import datasets
+from autoden import losses
+from autoden.models.config import NetworkParams, NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet
 
 
 def _get_normalization(vol: NDArray, percentile: float | None = None) -> tuple[float, float, float]:
