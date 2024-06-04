@@ -55,7 +55,12 @@ markdown_extensions:
 
 plugins:
 - search
-- mkdocstrings
+- autorefs
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          docstring_style: numpy
 - macros:
     module_name: docs/macros
 - gen-files:
