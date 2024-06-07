@@ -262,12 +262,12 @@ class Denoiser:
         dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
+        loss_trn, loss_tst = self._train_selfsimilar_big(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
             self._plot_loss_curves(loss_trn, loss_tst, f"Supervised {algo.upper()}")
 
-    def _train(
+    def _train_selfsimilar_big(
         self,
         dl_trn: DataLoader,
         dl_tst: DataLoader,
@@ -343,6 +343,87 @@ class Denoiser:
         self.net.load_state_dict(best_state)
 
         return np.array(losses_trn), np.array(losses_tst)
+
+    def _train_pixelmask_small(
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        mask_trn: NDArray,
+        epochs: int,
+        algo: str = "adam",
+        regularizer: losses.LossRegularizer | None = None,
+    ) -> tuple[NDArray, NDArray]:
+        losses_trn = []
+        losses_tst = []
+        loss_data_fn = pt.nn.MSELoss(reduction="mean")
+        optim = _create_optimizer(self.net, algo=algo)
+
+        best_epoch = -1
+        best_loss_tst = +np.inf
+        best_state = self.net.state_dict()
+        best_optim = optim.state_dict()
+
+        n_dims = inp.ndim
+        if n_dims == 2:
+            inp = inp[None, None, ...]
+        else:
+            inp = inp[:, None, ...]
+
+        inp_t = pt.tensor(inp, device=self.device)
+        tgt_trn = pt.tensor(tgt[mask_trn], device=self.device)
+        tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)], device=self.device)
+
+        mask_trn_t = pt.tensor(mask_trn, device=self.device)
+        mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
+
+        self.net.train()
+        for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
+            # Train
+            optim.zero_grad()
+            out_t: pt.Tensor = self.net(inp_t)
+            if n_dims == 2:
+                out_t_mask = out_t[0, 0]
+            else:
+                out_t_mask = out_t[:, 0]
+            if tgt.ndim == 3 and out_t_mask.ndim == 2:
+                out_t_mask = pt.tile(out_t_mask[None, :, :], [tgt.shape[-3], 1, 1])
+
+            out_trn = out_t_mask[mask_trn_t]
+
+            loss_trn = loss_data_fn(out_trn, tgt_trn)
+            if regularizer is not None:
+                loss_trn += regularizer(out_t)
+            loss_trn.backward()
+
+            losses_trn.append(loss_trn.item())
+            optim.step()
+
+            # Test
+            out_tst = out_t_mask[mask_tst_t]
+            loss_tst = loss_data_fn(out_tst, tgt_tst)
+            losses_tst.append(loss_tst.item())
+
+            # Check improvement
+            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
+                best_loss_tst = losses_tst[-1]
+                best_epoch = epoch
+                best_state = cp.deepcopy(self.net.state_dict())
+                best_optim = cp.deepcopy(optim.state_dict())
+
+            # Save epoch
+            if self.save_epochs:
+                self._save_state(epoch, self.net.state_dict(), optim.state_dict())
+
+        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
+        if self.save_epochs:
+            self._save_state(best_epoch, best_state, best_optim, is_final=True)
+
+        self.net.load_state_dict(best_state)
+
+        losses_trn = np.array(losses_trn)
+        losses_tst = np.array(losses_tst)
+
+        return losses_trn, losses_tst
 
     def _save_state(self, epoch_num: int, net_state: Mapping, optim_state: Mapping, is_final: bool = False) -> None:
         epochs_base_path = Path(self.dataset_name) / "weights"
@@ -430,24 +511,57 @@ class Denoiser:
 class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
-    def train_selfsupervised(
-        self, inp: NDArray, epochs: int, dset_split: DatasetSplit, strategy: str = "1:X", algo: str = "adam"
-    ):
-        """Self-supervised training.
+    # def train_selfsupervised(
+    #     self, inp: NDArray, epochs: int, dset_split: DatasetSplit, strategy: str = "1:X", algo: str = "adam"
+    # ):
+    #     """Self-supervised training.
 
-        Parameters
-        ----------
-        inp : NDArray
-            The input images, which will also be targets
-        epochs : int
-            Number of training epochs
-        dset_split : DatasetSplit
-            How to split the dataset in training and validation set
-        strategy : str, optional
-            The grouping strategy to use (either one-to-many, or many-to-one), by default "1:X"
-        algo : str, optional
-            Learning algorithm to use, by default "adam"
-        """
+    #     Parameters
+    #     ----------
+    #     inp : NDArray
+    #         The input images, which will also be targets
+    #     epochs : int
+    #         Number of training epochs
+    #     dset_split : DatasetSplit
+    #         How to split the dataset in training and validation set
+    #     strategy : str, optional
+    #         The grouping strategy to use (either one-to-many, or many-to-one), by default "1:X"
+    #     algo : str, optional
+    #         Learning algorithm to use, by default "adam"
+    #     """
+    #     range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
+
+    #     self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    #     self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
+
+    #     self.data_bias_inp = inp.mean() * self.data_scaling_inp
+    #     self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
+
+    #     # Rescale the datasets
+    #     inp = inp * self.data_scaling_inp - self.data_bias_inp
+
+    #     inp_trn = inp[dset_split.trn_inds]
+    #     inp_tst = inp[dset_split.tst_inds]
+
+    #     list_dsets_trn = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_trn]
+    #     list_dsets_tst = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_tst]
+
+    #     # Create datasets
+    #     dset_trn = datasets.SelfsupervisedDataset(*list_dsets_trn, strategy=strategy, device=self.device)
+    #     dset_tst = datasets.SelfsupervisedDataset(*list_dsets_tst, strategy=strategy, device=self.device)
+
+    #     dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
+    #     dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
+
+    #     reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
+    #     loss_trn, loss_tst = self._train_selfsimilar_big(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
+
+    #     if self.verbose:
+    #         self._plot_loss_curves(loss_trn, loss_tst, f"Self-supervised N2N {algo.upper()}")
+
+    def train_selfsupervised(
+        self, inp: NDArray, epochs: int, num_tst_ratio: float = 0.2, strategy: str = "1:X", algo: str = "adam"
+    ) -> NDArray:
         range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
 
         self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
@@ -459,24 +573,29 @@ class N2N(Denoiser):
         # Rescale the datasets
         inp = inp * self.data_scaling_inp - self.data_bias_inp
 
-        inp_trn = inp[dset_split.trn_inds]
-        inp_tst = inp[dset_split.tst_inds]
+        mask_trn = np.ones_like(inp, dtype=bool)
+        rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
+        mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
 
-        list_dsets_trn = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_trn]
-        list_dsets_tst = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_tst]
-
-        # Create datasets
-        dset_trn = datasets.SelfsupervisedDataset(*list_dsets_trn, strategy=strategy, device=self.device)
-        dset_tst = datasets.SelfsupervisedDataset(*list_dsets_tst, strategy=strategy, device=self.device)
-
-        dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
-        dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
+        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=0)
+        if strategy.upper() == "1:X":
+            tmp_inp = inp
+            tmp_tgt = inp_x
+        elif strategy.upper() == "X:1":
+            tmp_inp = inp_x
+            tmp_tgt = inp
+        else:
+            raise ValueError(f"Strategy {strategy} not implemented. Please choose one of: ['1:X', 'X:1']")
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        loss_trn, loss_tst = self._train(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
+        losses_trn, losses_tst = self._train_pixelmask_small(
+            tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg
+        )
 
         if self.verbose:
-            self._plot_loss_curves(loss_trn, loss_tst, f"Self-supervised N2N {algo.upper()}")
+            self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+
+        return inp
 
 
 class N2V(Denoiser):
@@ -668,83 +787,11 @@ class DIP(Denoiser):
         mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_dip(tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg)
+        losses_trn, losses_tst = self._train_pixelmask_small(
+            tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg
+        )
 
         if self.verbose:
-            self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+            self._plot_loss_curves(losses_trn, losses_tst, f"Unsupervised {self.__class__.__name__} {algo.upper()}")
 
         return inp
-
-    def _train_dip(
-        self,
-        inp: NDArray,
-        tgt: NDArray,
-        mask_trn: NDArray,
-        epochs: int,
-        algo: str = "adam",
-        regularizer: losses.LossRegularizer | None = None,
-    ) -> tuple[NDArray, NDArray]:
-        losses_trn = []
-        losses_tst = []
-        # loss_trn_fn = models.MSELoss_TV(lambda_val=self.reg_tv_val, reduction="sum")
-        loss_trn_fn = pt.nn.MSELoss(reduction="mean")
-        loss_tst_fn = pt.nn.MSELoss(reduction="mean")
-        optim = _create_optimizer(self.net, algo=algo)
-
-        best_epoch = -1
-        best_loss_tst = +np.inf
-        best_state = self.net.state_dict()
-        best_optim = optim.state_dict()
-
-        inp_t = pt.tensor(inp, device=self.device)[None, None, ...]
-        tgt_trn = pt.tensor(tgt[mask_trn], device=self.device)
-        tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)], device=self.device)
-
-        mask_trn_t = pt.tensor(mask_trn, device=self.device)
-        mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
-
-        self.net.train()
-        for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
-            # Train
-            optim.zero_grad()
-            out_t = self.net(inp_t)
-            out_t_mask = out_t[0, 0]
-            if tgt.ndim == 3:
-                out_t_mask = pt.tile(out_t_mask[None, :, :], [tgt.shape[-3], 1, 1])
-
-            out_trn = out_t_mask[mask_trn_t]
-
-            loss_trn = loss_trn_fn(out_trn, tgt_trn)
-            if regularizer is not None:
-                loss_trn += regularizer(out_t)
-            loss_trn.backward()
-
-            losses_trn.append(loss_trn.item())
-            optim.step()
-
-            # Test
-            out_tst = out_t_mask[mask_tst_t]
-            loss_tst = loss_tst_fn(out_tst, tgt_tst)
-            losses_tst.append(loss_tst.item())
-
-            # Check improvement
-            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-                best_loss_tst = losses_tst[-1]
-                best_epoch = epoch
-                best_state = cp.deepcopy(self.net.state_dict())
-                best_optim = cp.deepcopy(optim.state_dict())
-
-            # Save epoch
-            if self.save_epochs:
-                self._save_state(epoch, self.net.state_dict(), optim.state_dict())
-
-        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs:
-            self._save_state(best_epoch, best_state, best_optim, is_final=True)
-
-        self.net.load_state_dict(best_state)
-
-        losses_trn = np.array(losses_trn)
-        losses_tst = np.array(losses_tst)
-
-        return losses_trn, losses_tst
