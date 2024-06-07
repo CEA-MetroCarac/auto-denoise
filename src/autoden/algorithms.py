@@ -277,8 +277,7 @@ class Denoiser:
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        loss_trn_fn = pt.nn.MSELoss(reduction="sum")
-        loss_tst_fn = pt.nn.MSELoss(reduction="sum")
+        loss_data_fn = pt.nn.MSELoss(reduction="sum")
         optim = _create_optimizer(self.net, algo=algo)
 
         best_epoch = -1
@@ -299,7 +298,7 @@ class Denoiser:
 
                 optim.zero_grad()
                 out_trn = self.net(inp_trn)
-                loss_trn = loss_trn_fn(out_trn, tgt_trn)
+                loss_trn = loss_data_fn(out_trn, tgt_trn)
                 if regularizer is not None:
                     loss_trn += regularizer(out_trn)
                 loss_trn.backward()
@@ -319,7 +318,7 @@ class Denoiser:
                     # tgt_tst = tgt_tst.to(self.device, non_blocking=True)
 
                     out_tst = self.net(inp_tst)
-                    loss_tst = loss_tst_fn(out_tst, tgt_tst)
+                    loss_tst = loss_data_fn(out_tst, tgt_tst)
 
                     loss_tst_val += loss_tst.item()
 
@@ -650,13 +649,13 @@ class N2V(Denoiser):
         dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_n2v(
+        losses_trn, losses_tst = self._train_n2v_selfsimilar_big(
             dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo, regularizer=reg
         )
 
         self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
 
-    def _train_n2v(
+    def _train_n2v_selfsimilar_big(
         self,
         dl_trn: DataLoader,
         dl_tst: DataLoader,
@@ -668,8 +667,7 @@ class N2V(Denoiser):
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        loss_trn_fn = pt.nn.MSELoss(reduction="sum")
-        loss_tst_fn = pt.nn.MSELoss(reduction="sum")
+        loss_data_fn = pt.nn.MSELoss(reduction="sum")
         optim = _create_optimizer(self.net, algo=algo)
 
         best_epoch = -1
@@ -699,7 +697,7 @@ class N2V(Denoiser):
                 out_trn = self.net(inp_trn_damaged)
                 out_to_check = out_trn[:, :, to_check[0], to_check[1]].flatten()
                 ref_to_check = inp_trn[:, :, to_check[0], to_check[1]].flatten()
-                loss_trn = loss_trn_fn(out_to_check, ref_to_check)
+                loss_trn = loss_data_fn(out_to_check, ref_to_check)
                 if regularizer is not None:
                     loss_trn += regularizer(out_trn)
                 loss_trn.backward()
@@ -728,7 +726,7 @@ class N2V(Denoiser):
                     out_tst = self.net(inp_tst_damaged)
                     out_to_check = out_tst[:, :, to_check[0], to_check[1]].flatten()
                     ref_to_check = inp_tst[:, :, to_check[0], to_check[1]].flatten()
-                    loss_tst = loss_tst_fn(out_to_check, ref_to_check)
+                    loss_tst = loss_data_fn(out_to_check, ref_to_check)
 
                     loss_tst_val += loss_tst.item()
 
