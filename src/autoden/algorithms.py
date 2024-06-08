@@ -507,54 +507,6 @@ class Denoiser:
 class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
-    # def train_selfsupervised(
-    #     self, inp: NDArray, epochs: int, dset_split: DatasetSplit, strategy: str = "1:X", algo: str = "adam"
-    # ):
-    #     """Self-supervised training.
-
-    #     Parameters
-    #     ----------
-    #     inp : NDArray
-    #         The input images, which will also be targets
-    #     epochs : int
-    #         Number of training epochs
-    #     dset_split : DatasetSplit
-    #         How to split the dataset in training and validation set
-    #     strategy : str, optional
-    #         The grouping strategy to use (either one-to-many, or many-to-one), by default "1:X"
-    #     algo : str, optional
-    #         Learning algorithm to use, by default "adam"
-    #     """
-    #     range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
-
-    #     self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-    #     self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-
-    #     self.data_bias_inp = inp.mean() * self.data_scaling_inp
-    #     self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
-
-    #     # Rescale the datasets
-    #     inp = inp * self.data_scaling_inp - self.data_bias_inp
-
-    #     inp_trn = inp[dset_split.trn_inds]
-    #     inp_tst = inp[dset_split.tst_inds]
-
-    #     list_dsets_trn = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_trn]
-    #     list_dsets_tst = [datasets.NumpyDataset(x[None, ...], n_channels=self.n_channels) for x in inp_tst]
-
-    #     # Create datasets
-    #     dset_trn = datasets.SelfsupervisedDataset(*list_dsets_trn, strategy=strategy, device=self.device)
-    #     dset_tst = datasets.SelfsupervisedDataset(*list_dsets_tst, strategy=strategy, device=self.device)
-
-    #     dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
-    #     dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
-
-    #     reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-    #     loss_trn, loss_tst = self._train_selfsimilar_big(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
-
-    #     if self.verbose:
-    #         self._plot_loss_curves(loss_trn, loss_tst, f"Self-supervised N2N {algo.upper()}")
-
     def train_selfsupervised(
         self, inp: NDArray, epochs: int, num_tst_ratio: float = 0.2, strategy: str = "1:X", algo: str = "adam"
     ) -> None:
@@ -598,6 +550,160 @@ class N2N(Denoiser):
 class N2V(Denoiser):
     "Self-supervised denoising from single images."
 
+    # def train_selfsupervised(
+    #     self,
+    #     inp: NDArray,
+    #     epochs: int,
+    #     dset_split: DatasetSplit,
+    #     mask_shape: int | Sequence[int] | NDArray = 1,
+    #     ratio_blind_spot: float = 0.015,
+    #     algo: str = "adam",
+    # ):
+    #     """Self-supervised training.
+
+    #     Parameters
+    #     ----------
+    #     inp : NDArray
+    #         The input images, which will also be targets
+    #     epochs : int
+    #         Number of training epochs
+    #     dset_split : DatasetSplit
+    #         How to split the dataset in training and validation set
+    #     mask_shape : int | Sequence[int] | NDArray
+    #         Shape of the blind spot mask, by default 1.
+    #     algo : str, optional
+    #         Learning algorithm to use, by default "adam"
+    #     """
+    #     range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
+
+    #     self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    #     self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
+
+    #     self.data_bias_inp = inp.mean() * self.data_scaling_inp
+    #     self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
+
+    #     # Rescale the datasets
+    #     inp = inp * self.data_scaling_inp - self.data_bias_inp
+
+    #     inp_trn = inp[dset_split.trn_inds]
+    #     inp_tst = inp[dset_split.tst_inds]
+
+    #     dsets_trn = datasets.NumpyDataset(inp_trn, n_channels=self.n_channels)
+    #     dsets_tst = datasets.NumpyDataset(inp_tst, n_channels=self.n_channels)
+
+    #     # Create datasets
+    #     dset_trn = datasets.InferenceDataset(dsets_trn, device=self.device)
+    #     dset_tst = datasets.InferenceDataset(dsets_tst, device=self.device)
+
+    #     dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
+    #     dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
+
+    #     reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
+    #     losses_trn, losses_tst = self._train_n2v_selfsimilar_big(
+    #         dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo, regularizer=reg
+    #     )
+
+    #     self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+
+    # def _train_n2v_selfsimilar_big(
+    #     self,
+    #     dl_trn: DataLoader,
+    #     dl_tst: DataLoader,
+    #     epochs: int,
+    #     mask_shape: int | Sequence[int] | NDArray,
+    #     ratio_blind_spot: float,
+    #     algo: str = "adam",
+    #     regularizer: losses.LossRegularizer | None = None,
+    # ) -> tuple[NDArray, NDArray]:
+    #     losses_trn = []
+    #     losses_tst = []
+    #     loss_data_fn = pt.nn.MSELoss(reduction="sum")
+    #     optim = _create_optimizer(self.net, algo=algo)
+
+    #     best_epoch = -1
+    #     best_loss_tst = +np.inf
+    #     best_state = self.net.state_dict()
+    #     best_optim = optim.state_dict()
+
+    #     dset_trn_size = len(dl_trn)
+    #     dset_tst_size = len(dl_tst)
+
+    #     for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
+    #         # Train
+    #         self.net.train()
+    #         loss_trn_val = 0
+    #         for inp_trn in dl_trn:
+    #             inp_trn = pt.squeeze(inp_trn, dim=0).swapaxes(0, 1)
+    #             mask = _random_probe_mask(inp_trn.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
+    #             to_damage = np.where(mask > 0)
+    #             to_check = np.where(mask > 1)
+    #             inp_trn_damaged = pt.clone(inp_trn)
+    #             size_to_damage = inp_trn_damaged[:, :, to_damage[0], to_damage[1]].shape
+    #             inp_trn_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
+    #                 size_to_damage, device=inp_trn.device, dtype=inp_trn.dtype
+    #             )
+
+    #             optim.zero_grad()
+    #             out_trn = self.net(inp_trn_damaged)
+    #             out_to_check = out_trn[:, :, to_check[0], to_check[1]].flatten()
+    #             ref_to_check = inp_trn[:, :, to_check[0], to_check[1]].flatten()
+    #             loss_trn = loss_data_fn(out_to_check, ref_to_check)
+    #             if regularizer is not None:
+    #                 loss_trn += regularizer(out_trn)
+    #             loss_trn.backward()
+
+    #             loss_trn_val += loss_trn.item()
+
+    #             optim.step()
+
+    #         losses_trn.append(loss_trn_val / dset_trn_size)
+
+    #         # Test
+    #         self.net.eval()
+    #         loss_tst_val = 0
+    #         with pt.inference_mode():
+    #             for inp_tst in dl_tst:
+    #                 inp_tst = pt.squeeze(inp_tst, dim=0).swapaxes(0, 1)
+    #                 mask = _random_probe_mask(inp_tst.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
+    #                 to_damage = np.where(mask > 0)
+    #                 to_check = np.where(mask > 1)
+    #                 inp_tst_damaged = pt.clone(inp_tst)
+    #                 size_to_damage = inp_tst_damaged[:, :, to_damage[0], to_damage[1]].shape
+    #                 inp_tst_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
+    #                     size_to_damage, device=inp_tst.device, dtype=inp_tst.dtype
+    #                 )
+
+    #                 out_tst = self.net(inp_tst_damaged)
+    #                 out_to_check = out_tst[:, :, to_check[0], to_check[1]].flatten()
+    #                 ref_to_check = inp_tst[:, :, to_check[0], to_check[1]].flatten()
+    #                 loss_tst = loss_data_fn(out_to_check, ref_to_check)
+
+    #                 loss_tst_val += loss_tst.item()
+
+    #             losses_tst.append(loss_tst_val / dset_tst_size)
+
+    #         # Check improvement
+    #         if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
+    #             best_loss_tst = losses_tst[-1]
+    #             best_epoch = epoch
+    #             best_state = cp.deepcopy(self.net.state_dict())
+    #             best_optim = cp.deepcopy(optim.state_dict())
+
+    #         # Save epoch
+    #         if self.save_epochs:
+    #             self._save_state(epoch, self.net.state_dict(), optim.state_dict())
+
+    #     print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
+    #     if self.save_epochs:
+    #         self._save_state(best_epoch, best_state, best_optim, is_final=True)
+
+    #     self.net.load_state_dict(best_state)
+
+    #     losses_trn = np.array(losses_trn)
+    #     losses_tst = np.array(losses_tst)
+
+    #     return losses_trn, losses_tst
+
     def train_selfsupervised(
         self,
         inp: NDArray,
@@ -633,30 +739,26 @@ class N2V(Denoiser):
         # Rescale the datasets
         inp = inp * self.data_scaling_inp - self.data_bias_inp
 
-        inp_trn = inp[dset_split.trn_inds]
-        inp_tst = inp[dset_split.tst_inds]
-
-        dsets_trn = datasets.NumpyDataset(inp_trn, n_channels=self.n_channels)
-        dsets_tst = datasets.NumpyDataset(inp_tst, n_channels=self.n_channels)
-
-        # Create datasets
-        dset_trn = datasets.InferenceDataset(dsets_trn, device=self.device)
-        dset_tst = datasets.InferenceDataset(dsets_tst, device=self.device)
-
-        dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
-        dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
+        inp_trn = inp[dset_split.trn_inds].astype(np.float32)
+        inp_tst = inp[dset_split.tst_inds].astype(np.float32)
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_n2v_selfsimilar_big(
-            dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo, regularizer=reg
+        losses_trn, losses_tst = self._train_n2v_pixelmask_small(
+            inp_trn,
+            inp_tst,
+            epochs=epochs,
+            mask_shape=mask_shape,
+            ratio_blind_spot=ratio_blind_spot,
+            algo=algo,
+            regularizer=reg,
         )
 
         self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
 
-    def _train_n2v_selfsimilar_big(
+    def _train_n2v_pixelmask_small(
         self,
-        dl_trn: DataLoader,
-        dl_tst: DataLoader,
+        inp_trn: NDArray,
+        inp_tst: NDArray,
         epochs: int,
         mask_shape: int | Sequence[int] | NDArray,
         ratio_blind_spot: float,
@@ -665,7 +767,7 @@ class N2V(Denoiser):
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        loss_data_fn = pt.nn.MSELoss(reduction="sum")
+        loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = _create_optimizer(self.net, algo=algo)
 
         best_epoch = -1
@@ -673,62 +775,53 @@ class N2V(Denoiser):
         best_state = self.net.state_dict()
         best_optim = optim.state_dict()
 
-        dset_trn_size = len(dl_trn)
-        dset_tst_size = len(dl_tst)
+        inp_trn_t = pt.tensor(inp_trn, device=self.device)[:, None, ...]
+        inp_tst_t = pt.tensor(inp_tst, device=self.device)[:, None, ...]
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
             self.net.train()
-            loss_trn_val = 0
-            for inp_trn in dl_trn:
-                inp_trn = pt.squeeze(inp_trn, dim=0).swapaxes(0, 1)
-                mask = _random_probe_mask(inp_trn.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
-                to_damage = np.where(mask > 0)
-                to_check = np.where(mask > 1)
-                inp_trn_damaged = pt.clone(inp_trn)
-                size_to_damage = inp_trn_damaged[:, :, to_damage[0], to_damage[1]].shape
-                inp_trn_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
-                    size_to_damage, device=inp_trn.device, dtype=inp_trn.dtype
-                )
 
-                optim.zero_grad()
-                out_trn = self.net(inp_trn_damaged)
-                out_to_check = out_trn[:, :, to_check[0], to_check[1]].flatten()
-                ref_to_check = inp_trn[:, :, to_check[0], to_check[1]].flatten()
-                loss_trn = loss_data_fn(out_to_check, ref_to_check)
-                if regularizer is not None:
-                    loss_trn += regularizer(out_trn)
-                loss_trn.backward()
+            mask = _random_probe_mask(inp_trn_t.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
+            to_damage = np.where(mask > 0)
+            to_check = np.where(mask > 1)
+            inp_trn_damaged = pt.clone(inp_trn_t)
+            size_to_damage = inp_trn_damaged[..., to_damage[0], to_damage[1]].shape
+            inp_trn_damaged[..., to_damage[0], to_damage[1]] = pt.randn(
+                size_to_damage, device=inp_trn_t.device, dtype=inp_trn_t.dtype
+            )
 
-                loss_trn_val += loss_trn.item()
+            optim.zero_grad()
+            out_trn = self.net(inp_trn_damaged)
+            out_to_check = out_trn[..., to_check[0], to_check[1]].flatten()
+            ref_to_check = inp_trn_t[..., to_check[0], to_check[1]].flatten()
 
-                optim.step()
+            loss_trn = loss_data_fn(out_to_check, ref_to_check)
+            if regularizer is not None:
+                loss_trn += regularizer(out_trn)
+            loss_trn.backward()
 
-            losses_trn.append(loss_trn_val / dset_trn_size)
+            losses_trn.append(loss_trn.item())
+            optim.step()
 
             # Test
             self.net.eval()
-            loss_tst_val = 0
             with pt.inference_mode():
-                for inp_tst in dl_tst:
-                    inp_tst = pt.squeeze(inp_tst, dim=0).swapaxes(0, 1)
-                    mask = _random_probe_mask(inp_tst.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
-                    to_damage = np.where(mask > 0)
-                    to_check = np.where(mask > 1)
-                    inp_tst_damaged = pt.clone(inp_tst)
-                    size_to_damage = inp_tst_damaged[:, :, to_damage[0], to_damage[1]].shape
-                    inp_tst_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
-                        size_to_damage, device=inp_tst.device, dtype=inp_tst.dtype
-                    )
+                mask = _random_probe_mask(inp_tst_t.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
+                to_damage = np.where(mask > 0)
+                to_check = np.where(mask > 1)
+                inp_tst_damaged = pt.clone(inp_tst_t)
+                size_to_damage = inp_tst_damaged[..., to_damage[0], to_damage[1]].shape
+                inp_tst_damaged[..., to_damage[0], to_damage[1]] = pt.randn(
+                    size_to_damage, device=inp_tst_t.device, dtype=inp_tst_t.dtype
+                )
 
-                    out_tst = self.net(inp_tst_damaged)
-                    out_to_check = out_tst[:, :, to_check[0], to_check[1]].flatten()
-                    ref_to_check = inp_tst[:, :, to_check[0], to_check[1]].flatten()
-                    loss_tst = loss_data_fn(out_to_check, ref_to_check)
+                out_tst = self.net(inp_tst_damaged)
+                out_to_check = out_tst[..., to_check[0], to_check[1]].flatten()
+                ref_to_check = inp_tst_t[..., to_check[0], to_check[1]].flatten()
+                loss_tst = loss_data_fn(out_to_check, ref_to_check)
 
-                    loss_tst_val += loss_tst.item()
-
-                losses_tst.append(loss_tst_val / dset_tst_size)
+                losses_tst.append(loss_tst.item())
 
             # Check improvement
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
