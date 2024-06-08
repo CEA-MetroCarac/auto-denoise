@@ -135,7 +135,6 @@ class DatasetSplit:
 class Denoiser:
     """Denoising images."""
 
-    dataset_name: str
     n_channels: int
 
     data_scaling_inp: float | NDArray
@@ -147,13 +146,12 @@ class Denoiser:
     net: pt.nn.Module
 
     device: str
-    save_epochs: bool
+    save_epochs_dir: str | None
 
     verbose: bool
 
     def __init__(
         self,
-        dataset_name: str,
         network_type: str | NetworkParams,
         network_state: Mapping | None = None,
         data_scaling_inp: float | None = None,
@@ -161,15 +159,13 @@ class Denoiser:
         reg_tv_val: float | None = 1e-5,
         batch_size: int = 8,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
-        save_epochs: bool = True,
+        save_epochs_dir: str | None = None,
         verbose: bool = True,
     ) -> None:
         """Initialize the noise2noise method.
 
         Parameters
         ----------
-        dataset_name : str
-            Name of the dataset.
         network_type : Union[str, NetworkParams]
             Type of neural network to use
         network_state : Union[Mapping, None], optional
@@ -184,13 +180,12 @@ class Denoiser:
             Size of the batch, by default 8
         device : str, optional
             Device to use, by default "cuda" if cuda is available, otherwise "cpu"
-        save_epochs : bool, optional
-            Whether to save network states at each epoch, by default True
+        save_epochs_dir : str | None, optional
+            Directory where to save network states at each epoch.
+            If None disabled, by default None
         verbose : bool, optional
             Whether to produce verbose output, by default True
         """
-        self.dataset_name = dataset_name
-
         if isinstance(network_type, str):
             self.n_channels = 1
         else:
@@ -219,7 +214,7 @@ class Denoiser:
         self.reg_val = reg_tv_val
         self.batch_size = batch_size
         self.device = device
-        self.save_epochs = save_epochs
+        self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 
     def train_supervised(self, inp: NDArray, tgt: NDArray, epochs: int, dset_split: DatasetSplit, algo: str = "adam"):
@@ -332,11 +327,11 @@ class Denoiser:
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
-            if self.save_epochs:
+            if self.save_epochs_dir:
                 self._save_state(epoch, self.net.state_dict(), optim.state_dict())
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs:
+        if self.save_epochs_dir:
             self._save_state(best_epoch, best_state, best_optim, is_final=True)
 
         self.net.load_state_dict(best_state)
@@ -410,11 +405,11 @@ class Denoiser:
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
-            if self.save_epochs:
+            if self.save_epochs_dir:
                 self._save_state(epoch, self.net.state_dict(), optim.state_dict())
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs:
+        if self.save_epochs_dir:
             self._save_state(best_epoch, best_state, best_optim, is_final=True)
 
         self.net.load_state_dict(best_state)
@@ -425,7 +420,9 @@ class Denoiser:
         return losses_trn, losses_tst
 
     def _save_state(self, epoch_num: int, net_state: Mapping, optim_state: Mapping, is_final: bool = False) -> None:
-        epochs_base_path = Path(self.dataset_name) / "weights"
+        if self.save_epochs_dir is None:
+            raise ValueError("Directory for saving epochs not specified")
+        epochs_base_path = Path(self.save_epochs_dir) / "weights"
         epochs_base_path.mkdir(parents=True, exist_ok=True)
 
         if is_final:
@@ -437,9 +434,11 @@ class Denoiser:
             )
 
     def _load_state(self, epoch_num: int | None = None) -> None:
-        epochs_base_path = Path(self.dataset_name) / "weights"
+        if self.save_epochs_dir is None:
+            raise ValueError("Directory for saving epochs not specified")
+        epochs_base_path = Path(self.save_epochs_dir) / "weights"
         if not epochs_base_path.exists():
-            raise ValueError("No state to load!")
+            raise ValueError(f"Directory of the network state {epochs_base_path} does not exist!")
 
         if epoch_num is None or epoch_num == -1:
             state_path = epochs_base_path / "weights.pt"
@@ -831,11 +830,11 @@ class N2V(Denoiser):
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
-            if self.save_epochs:
+            if self.save_epochs_dir:
                 self._save_state(epoch, self.net.state_dict(), optim.state_dict())
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs:
+        if self.save_epochs_dir:
             self._save_state(best_epoch, best_state, best_optim, is_final=True)
 
         self.net.load_state_dict(best_state)

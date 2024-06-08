@@ -41,16 +41,17 @@ print(f"Img shape: {img_orig.shape}")
 # plt.show(block=False)
 
 net_params = ad.NetworkParamsUNet(n_features=16)
-denoiser_sup = ad.N2N("camera-supervised", network_type=net_params, save_epochs=False, reg_tv_val=REG_TV_VAL)
+
+denoiser_sup = ad.N2N(network_type=net_params, reg_tv_val=REG_TV_VAL)
 denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, dset_split=dset_split)
 
-denoiser_n2n = ad.N2N("camera-self-supervised-n2n", network_type=net_params, save_epochs=False, reg_tv_val=REG_TV_VAL)
+denoiser_n2n = ad.N2N(network_type=net_params, reg_tv_val=REG_TV_VAL)
 denoiser_n2n.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
 
-denoiser_n2v = ad.N2V("camera-self-supervised-n2v", network_type=net_params, save_epochs=False, reg_tv_val=REG_TV_VAL)
+denoiser_n2v = ad.N2V(network_type=net_params, reg_tv_val=REG_TV_VAL)
 denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, dset_split=dset_split)
 
-denoiser_dip = ad.DIP("camera-self-supervised-dip", network_type=net_params, save_epochs=False, reg_tv_val=REG_TV_VAL)
+denoiser_dip = ad.DIP(network_type=net_params, reg_tv_val=REG_TV_VAL)
 inp_dip = denoiser_dip.train_unsupervised(imgs_noisy, epochs=EPOCHS)
 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)

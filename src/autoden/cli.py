@@ -100,7 +100,7 @@ def main(args: list[str] | None = None) -> int:
 
     net_pars = NetworkParamsUNet(n_levels=opts.unet_levels, n_features=opts.unet_features)
     if opts.algorithm.upper() == "DIP":
-        algo = DIP("", network_type=net_pars, save_epochs=False, reg_tv_val=opts.regularization)
+        algo = DIP(network_type=net_pars, reg_tv_val=opts.regularization)
         inp_img = algo.train_unsupervised(np.stack(inp_imgs, axis=0), epochs=opts.epochs)
         out_img = algo.infer(inp_img)
         iio.imwrite(opts.dst_file, out_img)
