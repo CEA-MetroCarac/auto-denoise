@@ -429,10 +429,7 @@ class Denoiser:
         epochs_base_path.mkdir(parents=True, exist_ok=True)
 
         if is_final:
-            pt.save(
-                {"epoch": epoch_num, "state_dict": net_state, "optimizer": optim_state},
-                epochs_base_path / "weights.pt",
-            )
+            pt.save({"epoch": epoch_num, "state_dict": net_state, "optimizer": optim_state}, epochs_base_path / "weights.pt")
         else:
             pt.save(
                 {"epoch": epoch_num, "state_dict": net_state, "optimizer": optim_state},
@@ -560,7 +557,7 @@ class N2N(Denoiser):
 
     def train_selfsupervised(
         self, inp: NDArray, epochs: int, num_tst_ratio: float = 0.2, strategy: str = "1:X", algo: str = "adam"
-    ) -> NDArray:
+    ) -> None:
         range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
 
         self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
@@ -586,6 +583,9 @@ class N2N(Denoiser):
         else:
             raise ValueError(f"Strategy {strategy} not implemented. Please choose one of: ['1:X', 'X:1']")
 
+        tmp_inp = tmp_inp.astype(np.float32)
+        tmp_tgt = tmp_tgt.astype(np.float32)
+
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_pixelmask_small(
             tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg
@@ -593,8 +593,6 @@ class N2N(Denoiser):
 
         if self.verbose:
             self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
-
-        return inp
 
 
 class N2V(Denoiser):
@@ -783,6 +781,9 @@ class DIP(Denoiser):
         mask_trn = np.ones_like(tgt, dtype=bool)
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
         mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
+
+        tmp_inp = tmp_inp.astype(np.float32)
+        tmp_tgt = tmp_tgt.astype(np.float32)
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_pixelmask_small(
