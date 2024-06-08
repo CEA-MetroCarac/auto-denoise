@@ -11,8 +11,6 @@
 
 """Module that contains the command line application."""
 
-from pathlib import Path
-
 import argparse
 
 import imageio.v3 as iio
@@ -20,8 +18,9 @@ import imageio.v3 as iio
 import numpy as np
 
 from autoden import __version__
-from autoden.models.config import NetworkParamsUNet
 from autoden import DIP
+from autoden import N2N
+from autoden.models.config import NetworkParamsUNet
 
 DEFAULT_TV_VAL = 1e-6
 DEFAULT_EPOCHS = 2_000
@@ -97,14 +96,25 @@ def main(args: list[str] | None = None) -> int:
     if any(x.ndim > 2 for x in inp_imgs):
         print("Color images not supported, yet.")
         return 1
+    inp_imgs_stack = np.stack(inp_imgs, axis=0)
 
     net_pars = NetworkParamsUNet(n_levels=opts.unet_levels, n_features=opts.unet_features)
+
     if opts.algorithm.upper() == "DIP":
         algo = DIP(network_type=net_pars, reg_tv_val=opts.regularization)
-        inp_img = algo.train_unsupervised(np.stack(inp_imgs, axis=0), epochs=opts.epochs)
+        inp_img = algo.train_unsupervised(inp_imgs_stack, epochs=opts.epochs)
         out_img = algo.infer(inp_img)
-        iio.imwrite(opts.dst_file, out_img)
+    elif opts.algorithm.upper() == "N2N":
+        if len(inp_imgs) < 2:
+            print(f"Not enough input images, only {len(inp_imgs)} were passed.")
+            return 1
+
+        algo = N2N(network_type=net_pars, reg_tv_val=opts.regularization)
+        algo.train_selfsupervised(inp_imgs_stack, epochs=opts.epochs)
+        out_img = algo.infer(inp_imgs_stack)
     else:
         print(f"Not implemented support for algorithm {opts.algorithm} in command-line, yet.")
         return 1
+
+    iio.imwrite(opts.dst_file, out_img)
     return 0
