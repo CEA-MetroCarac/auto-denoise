@@ -30,7 +30,9 @@ def get_parser() -> argparse.ArgumentParser:
     """
     Return the CLI argument parser.
 
-    Returns:
+    Returns
+    -------
+    argparse.ArgumentParser
         An argparse parser.
     """
     parser = argparse.ArgumentParser(
@@ -82,10 +84,14 @@ def main(args: list[str] | None = None) -> int:
 
     This function is executed when you type `autoden` or `python -m autoden`.
 
-    Arguments:
-        args: Arguments passed from the command line.
+    Parameters
+    ----------
+    args : list[str] | None
+        Arguments passed from the command line.
 
-    Returns:
+    Returns
+    -------
+    int
         An exit code.
     """
     parser = get_parser()
