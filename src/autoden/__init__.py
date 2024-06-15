@@ -1,22 +1,20 @@
-"""
-Auto-Denoise package.
+"""Auto-Denoise package.
 
 Unsupervised and self-supervised CNN denoising methods.
 """
 
-try:
-    import importlib.metadata as metadata
-except ImportError:
-    import importlib_metadata as metadata
+from __future__ import annotations
 
-from . import datasets
-from . import models
-from . import losses
+from autoden import datasets
+from autoden import models
+from autoden import losses
 
-from .algorithms import *
+from autoden.algorithms import *
 
-__author__ = """Nicola Vigano"""
+from autoden.debug import get_version
+
+__author__ = """Nicola VIGANO"""
 __email__ = "nicola.vigano@cea.fr"
-__version__ = metadata.version("auto-denoise")
+__version__ = get_version()
 
-# __all__: list[str] = []  # noqa: WPS410 (the only __variable__ we use)
+# __all__: list[str] = []

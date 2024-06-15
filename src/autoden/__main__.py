@@ -1,5 +1,4 @@
-"""
-Entry-point module, in case you use `python -m autoden`.
+"""Entry-point module, in case you use `python -m autoden`.
 
 Why does this file exist, and why `__main__`? For more info, read:
 

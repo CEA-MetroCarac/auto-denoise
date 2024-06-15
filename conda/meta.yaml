@@ -1,10 +1,11 @@
 
-{% set pyproject = load_file_data('pyproject.toml') %}
-{% set poetry = pyproject.get('tool', {}).get('poetry') %}
+{%- set pyproject = load_file_data('pyproject.toml') %}
+{%- set project = pyproject.get('project', {}) %}
+{%- set env_file = load_file_data('environment.yaml') %}
 
 package:
-    name: {{ poetry.get('name') }}
-    version: {{ poetry.get('version') }}
+    name: {{ project['name'] }}
+    version: {{ project['version'] }}
 
 source:
     path: ../
@@ -22,17 +23,21 @@ requirements:
 
     run:
         - python
-        # dependencies are defined in pyproject.toml
-        {% for dep in poetry.get('dependencies') %}
-        - {{ dep.lower() }}
+        # Dependencies as defined in environment.yaml
+        # Some names might be different from pypi, so please curate that list manually
+        {% for dep in env_file['dependencies'] %}
+        - {{ dep }}
         {% endfor %}
 
 about:
-    home: {{ poetry.get('repository') }}
+    home: {{ project['urls']['Homepage'] }}
     license_file: LICENSE
-    summary: {{ poetry.get('description') }}
-    doc_url: {{ poetry.get('documentation') }}
+    summary: {{ project['description'] }}
+    doc_url: {{ project['urls']['Documentation'] }}
 
 extra:
     maintainers:
-        - {{ poetry.get('authors') }}
+        {% for author in project['authors'] %}
+        - "{{ author.name }} <{{ author.email }}>"
+        {% endfor %}
+

@@ -1,3 +1,5 @@
+"""Module that contains the command line application."""
+
 # Why does this file exist, and why not put this in `__main__`?
 #
 # You might be tempted to import things from `__main__` later,
@@ -9,21 +11,32 @@
 # - When you import `__main__` it will get executed again (as a module) because
 #   there's no `autoden.__main__` in `sys.modules`.
 
-"""Module that contains the command line application."""
+from __future__ import annotations
 
 import argparse
+import sys
+from typing import Any
 
 import imageio.v3 as iio
 
 import numpy as np
 
-from autoden import __version__
 from autoden import DIP
 from autoden import N2N
 from autoden.models.config import NetworkParamsUNet
+from autoden import debug
 
 DEFAULT_TV_VAL = 1e-6
 DEFAULT_EPOCHS = 2_000
+
+
+class _DebugInfo(argparse.Action):
+    def __init__(self, nargs: int | str | None = 0, **kwargs: Any) -> None:
+        super().__init__(nargs=nargs, **kwargs)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
+        debug.print_debug_info()
+        sys.exit(0)
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -74,7 +87,8 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("src_file", nargs="+", help="Path of each input image.", type=argparse.FileType("rb"))
     parser.add_argument("dst_file", help="Path of the output image.", type=argparse.FileType("wb"))
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {debug.get_version()}")
+    parser.add_argument("--debug-info", action=_DebugInfo, help="Print debug information.")
     return parser
 
 
@@ -87,7 +101,7 @@ def main(args: list[str] | None = None) -> int:
     Parameters
     ----------
     args : list[str] | None
-        Arguments passed from the command line.
+        Arguments passed from the command line, by default None.
 
     Returns
     -------
