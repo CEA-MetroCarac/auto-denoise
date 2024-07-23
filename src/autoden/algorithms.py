@@ -4,15 +4,14 @@ Implementation of various unsupervised and self-supervised denoising methods.
 
 import copy as cp
 from collections.abc import Mapping, Sequence
-from pathlib import Path
+from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
-from numpy.typing import NDArray
-from torch.utils.data import DataLoader
+from numpy.typing import DTypeLike, NDArray
 from tqdm.auto import tqdm
-from autoden import datasets
 from autoden import losses
+from autoden.io import load_model_state, save_model_state
 from autoden.models.config import NetworkParams, NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet
 
 
@@ -24,6 +23,11 @@ def _get_normalization(vol: NDArray, percentile: float | None = None) -> tuple[f
         return vol_sort[ind_min], vol_sort[ind_max], vol_sort[ind_min : ind_max + 1].mean()
     else:
         return vol.min(), vol.max(), vol.mean()
+
+
+def _single_channel_imgs_to_tensor(imgs: NDArray, device: str, dtype: DTypeLike = np.float32) -> pt.Tensor:
+    imgs = np.array(imgs, ndmin=3).astype(dtype)[..., None, :, :]
+    return pt.tensor(imgs, device=device)
 
 
 def _random_probe_mask(
@@ -102,62 +106,64 @@ def _create_optimizer(network: pt.nn.Module, algo: str = "adam", learning_rate: 
         raise ValueError(f"Unknown algorithm: {algo}")
 
 
-class DatasetSplit:
-    """Store the dataset split indices, between training and validation."""
+@dataclass
+class DataScalingBias:
+    """Data scaling and bias."""
 
-    trn_inds: NDArray[np.integer]
-    tst_inds: NDArray[np.integer] | None
+    scaling_inp: float | NDArray = 1.0
+    scaling_out: float | NDArray = 1.0
+    scaling_tgt: float | NDArray = 1.0
 
-    def __init__(self, trn_inds: NDArray, tst_inds: NDArray | None = None) -> None:
-        self.trn_inds = np.array(trn_inds)
-        self.tst_inds = np.array(tst_inds) if tst_inds is not None else None
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(\n  Training indices: {self.trn_inds}\n  Testing indices: {self.tst_inds}\n)"
-
-    @staticmethod
-    def create_sequential(num_trn_imgs: int, num_tst_imgs: int | None = None) -> "DatasetSplit":
-        return DatasetSplit(
-            np.arange(num_trn_imgs), np.arange(num_trn_imgs, num_trn_imgs + num_tst_imgs) if num_tst_imgs is not None else None
-        )
+    bias_inp: float | NDArray = 0.0
+    bias_out: float | NDArray = 0.0
+    bias_tgt: float | NDArray = 0.0
 
     @staticmethod
-    def create_random(num_trn_imgs: int, num_tst_imgs: int | None, tot_num_imgs: int | None = None) -> "DatasetSplit":
-        if tot_num_imgs is None:
-            tot_num_imgs = num_trn_imgs + num_tst_imgs if num_tst_imgs is not None else 0
-        inds = np.arange(tot_num_imgs)
-        inds = np.random.permutation(inds)
-        return DatasetSplit(
-            inds[:num_trn_imgs], inds[num_trn_imgs : num_trn_imgs + num_tst_imgs] if num_tst_imgs is not None else None
-        )
+    def compute_supervised(inp: NDArray, tgt: NDArray) -> "DataScalingBias":
+        range_vals_inp = _get_normalization(inp, percentile=0.001)
+        range_vals_tgt = _get_normalization(tgt, percentile=0.001)
+
+        sb = DataScalingBias()
+        sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+        sb.scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
+        sb.scaling_out = sb.scaling_tgt
+
+        sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
+        sb.bias_tgt = range_vals_tgt[2] * sb.scaling_tgt
+        sb.bias_out = sb.bias_tgt
+
+        return sb
+
+    @staticmethod
+    def compute_selfsupervised(inp: NDArray) -> "DataScalingBias":
+        range_vals_inp = _get_normalization(inp, percentile=0.001)
+
+        sb = DataScalingBias()
+        sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+        sb.scaling_out = sb.scaling_tgt = sb.scaling_inp
+
+        sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
+        sb.bias_out = sb.bias_tgt = sb.bias_inp
+
+        return sb
 
 
 class Denoiser:
     """Denoising images."""
 
-    n_channels: int
-
-    data_scaling_inp: float | NDArray
-    data_scaling_tgt: float | NDArray
-
-    data_bias_inp: float | NDArray
-    data_bias_tgt: float | NDArray
+    data_sb: DataScalingBias | None
 
     net: pt.nn.Module
-
     device: str
-    save_epochs_dir: str | None
 
+    save_epochs_dir: str | None
     verbose: bool
 
     def __init__(
         self,
-        network_type: str | NetworkParams,
-        network_state: Mapping | None = None,
-        data_scaling_inp: float | None = None,
-        data_scaling_tgt: float | None = None,
+        model: str | NetworkParams | pt.nn.Module | Mapping | None,
+        data_scaling_bias: DataScalingBias | None = None,
         reg_tv_val: float | None = 1e-5,
-        batch_size: int = 8,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         save_epochs_dir: str | None = None,
         verbose: bool = True,
@@ -166,18 +172,14 @@ class Denoiser:
 
         Parameters
         ----------
-        network_type : Union[str, NetworkParams]
-            Type of neural network to use
-        network_state : Union[Mapping, None], optional
-            Specific network state to load, by default None
+        model : str | NetworkParams | pt.nn.Module | Mapping | None
+            Type of neural network to use or a specific network (or state) to use
         data_scaling_inp : Union[float, None], optional
             Scaling of the input data, by default None
         data_scaling_tgt : Union[float, None], optional
             Scaling of the output, by default None
         reg_tv_val : Union[float, None], optional
             Deep-image prior regularization value, by default 1e-5
-        batch_size : int, optional
-            Size of the batch, by default 8
         device : str, optional
             Device to use, by default "cuda" if cuda is available, otherwise "cpu"
         save_epochs_dir : str | None, optional
@@ -186,38 +188,39 @@ class Denoiser:
         verbose : bool, optional
             Whether to produce verbose output, by default True
         """
-        if isinstance(network_type, str):
-            self.n_channels = 1
-        else:
-            self.n_channels = network_type.n_channels_in
+        if model is None or isinstance(model, (int, Mapping)):
+            if isinstance(model, int):
+                if self.save_epochs_dir is None:
+                    raise ValueError("Directory for saving epochs not specified")
 
-        self.net = _create_network(network_type, device=device)
+                state_dict = load_model_state(self.save_epochs_dir, epoch_num=model)
+                model = state_dict["state_dict"]
 
-        if network_state is not None:
-            if isinstance(network_state, int):
-                self._load_state(network_state)
+            if isinstance(model, Mapping):
+                self.net.load_state_dict(model)
+                self.net.to(self.device)
             else:
-                self.net.load_state_dict(network_state)
+                raise ValueError(f"Invalid model state: {model}")
+        elif isinstance(model, (str, NetworkParams)):
+            self.net = _create_network(model, device=device)
+        elif isinstance(model, pt.nn.Module):
+            self.net = model
 
-        if data_scaling_inp is not None:
-            self.data_scaling_inp = data_scaling_inp
-        else:
-            self.data_scaling_inp = 1
-        if data_scaling_tgt is not None:
-            self.data_scaling_tgt = data_scaling_tgt
-        else:
-            self.data_scaling_tgt = 1
-
-        self.data_bias_inp = 0
-        self.data_bias_tgt = 0
+        self.data_sb = data_scaling_bias
 
         self.reg_val = reg_tv_val
-        self.batch_size = batch_size
         self.device = device
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 
-    def train_supervised(self, inp: NDArray, tgt: NDArray, epochs: int, dset_split: DatasetSplit, algo: str = "adam"):
+    def train_supervised(
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        epochs: int,
+        tst_inds: Sequence[int] | NDArray,
+        algo: str = "adam",
+    ):
         """Supervised training.
 
         Parameters
@@ -228,51 +231,50 @@ class Denoiser:
             The target images
         epochs : int
             Number of training epochs
-        dset_split : DatasetSplit
-            How to split the dataset in training and validation set
+        tst_inds : Sequence[int] | NDArray
+            The validation set indices
         algo : str, optional
             Learning algorithm to use, by default "adam"
         """
+        num_imgs = inp.shape[0]
+        tst_inds = np.array(tst_inds, dtype=int)
+        if np.any(tst_inds < 0) or np.any(tst_inds >= num_imgs):
+            raise ValueError(
+                f"Each cross-validation index should be greater or equal than 0, and less than the number of images {num_imgs}"
+            )
+        trn_inds = np.delete(np.arange(num_imgs), obj=tst_inds)
+
         if tgt.ndim == (inp.ndim - 1):
-            tgt = np.tile(tgt[None, ...], [inp.shape[0], *np.ones_like(tgt.shape)])
+            tgt = np.tile(tgt[None, ...], [num_imgs, *np.ones_like(tgt.shape)])
 
-        range_vals_inp = _get_normalization(inp, percentile=0.001)
-        range_vals_tgt = _get_normalization(tgt, percentile=0.001)
-
-        self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-        self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-
-        self.data_bias_inp = inp.mean() * self.data_scaling_inp
-        self.data_bias_tgt = tgt.mean() * self.data_scaling_tgt
+        if self.data_sb is None:
+            self.data_sb = DataScalingBias.compute_supervised(inp, tgt)
 
         # Rescale the datasets
-        inp = inp * self.data_scaling_inp - self.data_bias_inp
-        tgt = tgt * self.data_scaling_tgt - self.data_bias_tgt
+        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
+        tgt = tgt * self.data_sb.scaling_tgt - self.data_sb.bias_tgt
 
         # Create datasets
-        dset_trn = datasets.SupervisedDataset(inp[dset_split.trn_inds], tgt[dset_split.trn_inds], device=self.device)
-        dset_tst = datasets.SupervisedDataset(inp[dset_split.tst_inds], tgt[dset_split.tst_inds], device=self.device)
-
-        dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
-        dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
+        dset_trn = (inp[trn_inds], tgt[trn_inds])
+        dset_tst = (inp[tst_inds], tgt[tst_inds])
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        loss_trn, loss_tst = self._train_selfsimilar_big(dl_trn, dl_tst, epochs=epochs, algo=algo, regularizer=reg)
+        loss_trn, loss_tst = self._train_selfsimilar(dset_trn, dset_tst, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
             self._plot_loss_curves(loss_trn, loss_tst, f"Supervised {algo.upper()}")
 
-    def _train_selfsimilar_big(
+    def _train_selfsimilar(
         self,
-        dl_trn: DataLoader,
-        dl_tst: DataLoader,
+        dset_trn: tuple[NDArray, NDArray],
+        dset_tst: tuple[NDArray, NDArray],
         epochs: int,
         algo: str = "adam",
         regularizer: losses.LossRegularizer | None = None,
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
-        loss_data_fn = pt.nn.MSELoss(reduction="sum")
+        loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = _create_optimizer(self.net, algo=algo)
 
         best_epoch = -1
@@ -280,44 +282,37 @@ class Denoiser:
         best_state = self.net.state_dict()
         best_optim = optim.state_dict()
 
-        dset_trn_size = len(dl_trn)
-        dset_tst_size = len(dl_tst)
+        inp_trn_t = _single_channel_imgs_to_tensor(dset_trn[0], device=self.device)
+        tgt_trn_t = _single_channel_imgs_to_tensor(dset_trn[1], device=self.device)
+
+        inp_tst_t = _single_channel_imgs_to_tensor(dset_tst[0], device=self.device)
+        tgt_tst_t = _single_channel_imgs_to_tensor(dset_tst[1], device=self.device)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
             self.net.train()
-            loss_trn_val = 0
-            for inp_trn, tgt_trn in dl_trn:
-                # inp_trn = inp_trn.to(self.device, non_blocking=True)
-                # tgt_trn = tgt_trn.to(self.device, non_blocking=True)
 
-                optim.zero_grad()
-                out_trn = self.net(inp_trn)
-                loss_trn = loss_data_fn(out_trn, tgt_trn)
-                if regularizer is not None:
-                    loss_trn += regularizer(out_trn)
-                loss_trn.backward()
+            optim.zero_grad()
+            out_trn: pt.Tensor = self.net(inp_trn_t)
+            loss_trn = loss_data_fn(out_trn, tgt_trn_t)
+            if regularizer is not None:
+                loss_trn += regularizer(out_trn)
+            loss_trn.backward()
 
-                loss_trn_val += loss_trn.item()
+            loss_trn_val = loss_trn.item()
+            losses_trn.append(loss_trn_val)
 
-                optim.step()
-
-            losses_trn.append(loss_trn_val / dset_trn_size)
+            optim.step()
 
             # Test
             self.net.eval()
             loss_tst_val = 0
             with pt.inference_mode():
-                for inp_tst, tgt_tst in dl_tst:
-                    # inp_tst = inp_tst.to(self.device, non_blocking=True)
-                    # tgt_tst = tgt_tst.to(self.device, non_blocking=True)
+                out_tst = self.net(inp_tst_t)
+                loss_tst = loss_data_fn(out_tst, tgt_tst_t)
 
-                    out_tst = self.net(inp_tst)
-                    loss_tst = loss_data_fn(out_tst, tgt_tst)
-
-                    loss_tst_val += loss_tst.item()
-
-                losses_tst.append(loss_tst_val / dset_tst_size)
+                loss_tst_val = loss_tst.item()
+                losses_tst.append(loss_tst_val)
 
             # Check improvement
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
@@ -332,7 +327,7 @@ class Denoiser:
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
-            self._save_state(best_epoch, best_state, best_optim, is_final=True)
+            self._save_state(best_epoch, best_state, best_optim, is_best=True)
 
         self.net.load_state_dict(best_state)
 
@@ -358,14 +353,10 @@ class Denoiser:
         best_optim = optim.state_dict()
 
         n_dims = inp.ndim
-        if n_dims == 2:
-            inp = inp[None, None, ...]
-        else:
-            inp = inp[:, None, ...]
 
-        inp_t = pt.tensor(inp, device=self.device)
-        tgt_trn = pt.tensor(tgt[mask_trn], device=self.device)
-        tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)], device=self.device)
+        inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
+        tgt_trn = pt.tensor(tgt[mask_trn].astype(np.float32), device=self.device)
+        tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)].astype(np.float32), device=self.device)
 
         mask_trn_t = pt.tensor(mask_trn, device=self.device)
         mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
@@ -382,7 +373,7 @@ class Denoiser:
             if tgt.ndim == 3 and out_t_mask.ndim == 2:
                 out_t_mask = pt.tile(out_t_mask[None, :, :], [tgt.shape[-3], 1, 1])
 
-            out_trn = out_t_mask[mask_trn_t]
+            out_trn = out_t_mask[mask_trn_t].flatten()
 
             loss_trn = loss_data_fn(out_trn, tgt_trn)
             if regularizer is not None:
@@ -405,12 +396,16 @@ class Denoiser:
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
-            if self.save_epochs_dir:
-                self._save_state(epoch, self.net.state_dict(), optim.state_dict())
+            if self.save_epochs_dir is not None:
+                save_model_state(
+                    self.save_epochs_dir, epoch_num=epoch, model_state=self.net.state_dict(), optim_state=optim.state_dict()
+                )
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs_dir:
-            self._save_state(best_epoch, best_state, best_optim, is_final=True)
+        if self.save_epochs_dir is not None:
+            save_model_state(
+                self.save_epochs_dir, epoch_num=best_epoch, model_state=best_state, optim_state=best_optim, is_best=True
+            )
 
         self.net.load_state_dict(best_state)
 
@@ -419,33 +414,19 @@ class Denoiser:
 
         return losses_trn, losses_tst
 
-    def _save_state(self, epoch_num: int, net_state: Mapping, optim_state: Mapping, is_final: bool = False) -> None:
+    def _save_state(self, epoch_num: int, model_state: Mapping, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")
-        epochs_base_path = Path(self.save_epochs_dir) / "weights"
-        epochs_base_path.mkdir(parents=True, exist_ok=True)
 
-        if is_final:
-            pt.save({"epoch": epoch_num, "state_dict": net_state, "optimizer": optim_state}, epochs_base_path / "weights.pt")
-        else:
-            pt.save(
-                {"epoch": epoch_num, "state_dict": net_state, "optimizer": optim_state},
-                epochs_base_path / f"weights_epoch_{epoch_num}.pt",
-            )
+        save_model_state(
+            self.save_epochs_dir, epoch_num=epoch_num, model_state=model_state, optim_state=optim_state, is_best=is_best
+        )
 
     def _load_state(self, epoch_num: int | None = None) -> None:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")
-        epochs_base_path = Path(self.save_epochs_dir) / "weights"
-        if not epochs_base_path.exists():
-            raise ValueError(f"Directory of the network state {epochs_base_path} does not exist!")
 
-        if epoch_num is None or epoch_num == -1:
-            state_path = epochs_base_path / "weights.pt"
-        else:
-            state_path = epochs_base_path / f"weights_epoch_{epoch_num}.pt"
-        print(f"Loading state path: {state_path}")
-        state_dict = pt.load(state_path)
+        state_dict = load_model_state(self.save_epochs_dir, epoch_num=epoch_num)
         self.net.load_state_dict(state_dict["state_dict"])
 
     def _plot_loss_curves(self, train_loss: NDArray, test_loss: NDArray, title: str | None = None) -> None:
@@ -475,31 +456,20 @@ class Denoiser:
             The denoised stack of images
         """
         # Rescale input
-        inp = inp * self.data_scaling_inp - self.data_bias_inp
+        if self.data_sb is not None:
+            inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
-        # Create datasets
-        dset = datasets.InferenceDataset(inp, device=self.device)
+        inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
 
-        dtl = DataLoader(dset, batch_size=self.batch_size)
-
-        output = self._infer(dtl)
+        self.net.eval()
+        with pt.inference_mode():
+            out_t = pt.squeeze(self.net(inp_t))
+            output = out_t.to("cpu").numpy()
 
         # Rescale output
-        return (output + self.data_bias_tgt) / self.data_scaling_tgt
+        if self.data_sb is not None:
+            output = (output + self.data_sb.bias_out) / self.data_sb.scaling_out
 
-    def _infer(self, dtl: DataLoader) -> NDArray:
-        self.net.eval()
-        output = []
-        with pt.inference_mode():
-            for inp in tqdm(dtl, desc="Inference"):
-                inp = inp.to(self.device, non_blocking=True)
-
-                out = self.net(inp)
-                output.append(out.cpu().numpy())
-
-        output = np.concatenate(output, axis=0)
-        if output.shape[1] == 1:
-            output = np.squeeze(output, axis=1)
         return output
 
 
@@ -509,16 +479,11 @@ class N2N(Denoiser):
     def train_selfsupervised(
         self, inp: NDArray, epochs: int, num_tst_ratio: float = 0.2, strategy: str = "1:X", algo: str = "adam"
     ) -> None:
-        range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
-
-        self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-        self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-
-        self.data_bias_inp = inp.mean() * self.data_scaling_inp
-        self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
+        if self.data_sb is None:
+            self.data_sb = DataScalingBias.compute_selfsupervised(inp)
 
         # Rescale the datasets
-        inp = inp * self.data_scaling_inp - self.data_bias_inp
+        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
         mask_trn = np.ones_like(inp, dtype=bool)
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
@@ -549,165 +514,11 @@ class N2N(Denoiser):
 class N2V(Denoiser):
     "Self-supervised denoising from single images."
 
-    # def train_selfsupervised(
-    #     self,
-    #     inp: NDArray,
-    #     epochs: int,
-    #     dset_split: DatasetSplit,
-    #     mask_shape: int | Sequence[int] | NDArray = 1,
-    #     ratio_blind_spot: float = 0.015,
-    #     algo: str = "adam",
-    # ):
-    #     """Self-supervised training.
-
-    #     Parameters
-    #     ----------
-    #     inp : NDArray
-    #         The input images, which will also be targets
-    #     epochs : int
-    #         Number of training epochs
-    #     dset_split : DatasetSplit
-    #         How to split the dataset in training and validation set
-    #     mask_shape : int | Sequence[int] | NDArray
-    #         Shape of the blind spot mask, by default 1.
-    #     algo : str, optional
-    #         Learning algorithm to use, by default "adam"
-    #     """
-    #     range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
-
-    #     self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-    #     self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-
-    #     self.data_bias_inp = inp.mean() * self.data_scaling_inp
-    #     self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
-
-    #     # Rescale the datasets
-    #     inp = inp * self.data_scaling_inp - self.data_bias_inp
-
-    #     inp_trn = inp[dset_split.trn_inds]
-    #     inp_tst = inp[dset_split.tst_inds]
-
-    #     dsets_trn = datasets.NumpyDataset(inp_trn, n_channels=self.n_channels)
-    #     dsets_tst = datasets.NumpyDataset(inp_tst, n_channels=self.n_channels)
-
-    #     # Create datasets
-    #     dset_trn = datasets.InferenceDataset(dsets_trn, device=self.device)
-    #     dset_tst = datasets.InferenceDataset(dsets_tst, device=self.device)
-
-    #     dl_trn = DataLoader(dset_trn, batch_size=self.batch_size)
-    #     dl_tst = DataLoader(dset_tst, batch_size=self.batch_size * 16)
-
-    #     reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-    #     losses_trn, losses_tst = self._train_n2v_selfsimilar_big(
-    #         dl_trn, dl_tst, epochs=epochs, mask_shape=mask_shape, ratio_blind_spot=ratio_blind_spot, algo=algo, regularizer=reg
-    #     )
-
-    #     self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
-
-    # def _train_n2v_selfsimilar_big(
-    #     self,
-    #     dl_trn: DataLoader,
-    #     dl_tst: DataLoader,
-    #     epochs: int,
-    #     mask_shape: int | Sequence[int] | NDArray,
-    #     ratio_blind_spot: float,
-    #     algo: str = "adam",
-    #     regularizer: losses.LossRegularizer | None = None,
-    # ) -> tuple[NDArray, NDArray]:
-    #     losses_trn = []
-    #     losses_tst = []
-    #     loss_data_fn = pt.nn.MSELoss(reduction="sum")
-    #     optim = _create_optimizer(self.net, algo=algo)
-
-    #     best_epoch = -1
-    #     best_loss_tst = +np.inf
-    #     best_state = self.net.state_dict()
-    #     best_optim = optim.state_dict()
-
-    #     dset_trn_size = len(dl_trn)
-    #     dset_tst_size = len(dl_tst)
-
-    #     for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
-    #         # Train
-    #         self.net.train()
-    #         loss_trn_val = 0
-    #         for inp_trn in dl_trn:
-    #             inp_trn = pt.squeeze(inp_trn, dim=0).swapaxes(0, 1)
-    #             mask = _random_probe_mask(inp_trn.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
-    #             to_damage = np.where(mask > 0)
-    #             to_check = np.where(mask > 1)
-    #             inp_trn_damaged = pt.clone(inp_trn)
-    #             size_to_damage = inp_trn_damaged[:, :, to_damage[0], to_damage[1]].shape
-    #             inp_trn_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
-    #                 size_to_damage, device=inp_trn.device, dtype=inp_trn.dtype
-    #             )
-
-    #             optim.zero_grad()
-    #             out_trn = self.net(inp_trn_damaged)
-    #             out_to_check = out_trn[:, :, to_check[0], to_check[1]].flatten()
-    #             ref_to_check = inp_trn[:, :, to_check[0], to_check[1]].flatten()
-    #             loss_trn = loss_data_fn(out_to_check, ref_to_check)
-    #             if regularizer is not None:
-    #                 loss_trn += regularizer(out_trn)
-    #             loss_trn.backward()
-
-    #             loss_trn_val += loss_trn.item()
-
-    #             optim.step()
-
-    #         losses_trn.append(loss_trn_val / dset_trn_size)
-
-    #         # Test
-    #         self.net.eval()
-    #         loss_tst_val = 0
-    #         with pt.inference_mode():
-    #             for inp_tst in dl_tst:
-    #                 inp_tst = pt.squeeze(inp_tst, dim=0).swapaxes(0, 1)
-    #                 mask = _random_probe_mask(inp_tst.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
-    #                 to_damage = np.where(mask > 0)
-    #                 to_check = np.where(mask > 1)
-    #                 inp_tst_damaged = pt.clone(inp_tst)
-    #                 size_to_damage = inp_tst_damaged[:, :, to_damage[0], to_damage[1]].shape
-    #                 inp_tst_damaged[:, :, to_damage[0], to_damage[1]] = pt.randn(
-    #                     size_to_damage, device=inp_tst.device, dtype=inp_tst.dtype
-    #                 )
-
-    #                 out_tst = self.net(inp_tst_damaged)
-    #                 out_to_check = out_tst[:, :, to_check[0], to_check[1]].flatten()
-    #                 ref_to_check = inp_tst[:, :, to_check[0], to_check[1]].flatten()
-    #                 loss_tst = loss_data_fn(out_to_check, ref_to_check)
-
-    #                 loss_tst_val += loss_tst.item()
-
-    #             losses_tst.append(loss_tst_val / dset_tst_size)
-
-    #         # Check improvement
-    #         if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-    #             best_loss_tst = losses_tst[-1]
-    #             best_epoch = epoch
-    #             best_state = cp.deepcopy(self.net.state_dict())
-    #             best_optim = cp.deepcopy(optim.state_dict())
-
-    #         # Save epoch
-    #         if self.save_epochs:
-    #             self._save_state(epoch, self.net.state_dict(), optim.state_dict())
-
-    #     print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-    #     if self.save_epochs:
-    #         self._save_state(best_epoch, best_state, best_optim, is_final=True)
-
-    #     self.net.load_state_dict(best_state)
-
-    #     losses_trn = np.array(losses_trn)
-    #     losses_tst = np.array(losses_tst)
-
-    #     return losses_trn, losses_tst
-
     def train_selfsupervised(
         self,
         inp: NDArray,
         epochs: int,
-        dset_split: DatasetSplit,
+        tst_inds: Sequence[int] | NDArray,
         mask_shape: int | Sequence[int] | NDArray = 1,
         ratio_blind_spot: float = 0.015,
         algo: str = "adam",
@@ -720,26 +531,29 @@ class N2V(Denoiser):
             The input images, which will also be targets
         epochs : int
             Number of training epochs
-        dset_split : DatasetSplit
-            How to split the dataset in training and validation set
+        tst_inds : Sequence[int] | NDArray
+            The validation set indices
         mask_shape : int | Sequence[int] | NDArray
             Shape of the blind spot mask, by default 1.
         algo : str, optional
             Learning algorithm to use, by default "adam"
         """
-        range_vals_tgt = range_vals_inp = _get_normalization(inp, percentile=0.001)
+        num_imgs = inp.shape[0]
+        tst_inds = np.array(tst_inds, dtype=int)
+        if np.any(tst_inds < 0) or np.any(tst_inds >= num_imgs):
+            raise ValueError(
+                f"Each cross-validation index should be greater or equal than 0, and less than the number of images {num_imgs}"
+            )
+        trn_inds = np.delete(np.arange(num_imgs), obj=tst_inds)
 
-        self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-        self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-
-        self.data_bias_inp = inp.mean() * self.data_scaling_inp
-        self.data_bias_tgt = inp.mean() * self.data_scaling_tgt
+        if self.data_sb is None:
+            self.data_sb = DataScalingBias.compute_selfsupervised(inp)
 
         # Rescale the datasets
-        inp = inp * self.data_scaling_inp - self.data_bias_inp
+        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
-        inp_trn = inp[dset_split.trn_inds].astype(np.float32)
-        inp_tst = inp[dset_split.tst_inds].astype(np.float32)
+        inp_trn = inp[trn_inds]
+        inp_tst = inp[tst_inds]
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_n2v_pixelmask_small(
@@ -774,8 +588,8 @@ class N2V(Denoiser):
         best_state = self.net.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_t = pt.tensor(inp_trn, device=self.device)[:, None, ...]
-        inp_tst_t = pt.tensor(inp_tst, device=self.device)[:, None, ...]
+        inp_trn_t = _single_channel_imgs_to_tensor(inp_trn, device=self.device)
+        inp_tst_t = _single_channel_imgs_to_tensor(inp_tst, device=self.device)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
@@ -835,7 +649,7 @@ class N2V(Denoiser):
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
-            self._save_state(best_epoch, best_state, best_optim, is_final=True)
+            self._save_state(best_epoch, best_state, best_optim, is_best=True)
 
         self.net.load_state_dict(best_state)
 
@@ -852,30 +666,18 @@ class DIP(Denoiser):
         self, tgt: NDArray, epochs: int, inp: NDArray | None = None, num_tst_ratio: float = 0.2, algo: str = "adam"
     ) -> NDArray:
         if inp is None:
-            tmp_inp = inp = np.random.normal(size=tgt.shape[-2:], scale=0.25).astype(tgt.dtype)
-            self.data_scaling_inp = 1.0
-            self.data_bias_inp = 0.0
-        else:
-            range_vals_inp = _get_normalization(inp, percentile=0.001)
-            self.data_scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-            self.data_bias_inp = range_vals_inp[2] * self.data_scaling_inp
+            inp = np.random.normal(size=tgt.shape[-2:], scale=0.25).astype(tgt.dtype)
 
-            # Rescale input
-            tmp_inp = inp * self.data_scaling_inp - self.data_bias_inp
+        if self.data_sb is None:
+            self.data_sb = DataScalingBias.compute_supervised(inp, tgt)
 
-        range_vals_tgt = _get_normalization(tgt, percentile=0.001)
-        self.data_scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-        self.data_bias_tgt = range_vals_tgt[2] * self.data_scaling_tgt
-
-        # Rescale target
-        tmp_tgt = tgt * self.data_scaling_tgt - self.data_bias_tgt
+        # Rescale the datasets
+        tmp_inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
+        tmp_tgt = tgt * self.data_sb.scaling_tgt - self.data_sb.bias_tgt
 
         mask_trn = np.ones_like(tgt, dtype=bool)
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
         mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
-
-        tmp_inp = tmp_inp.astype(np.float32)
-        tmp_tgt = tmp_tgt.astype(np.float32)
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_pixelmask_small(

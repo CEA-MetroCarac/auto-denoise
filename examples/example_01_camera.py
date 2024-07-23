@@ -14,8 +14,11 @@ import autoden as ad
 
 
 USE_CAMERA_MAN = True
+NUM_IMGS_TRN = 4
+NUM_IMGS_TST = 2
+NUM_IMGS_TOT = NUM_IMGS_TRN + NUM_IMGS_TST
 
-EPOCHS = 2048
+EPOCHS = 1024
 REG_TV_VAL = None
 
 if USE_CAMERA_MAN:
@@ -26,10 +29,13 @@ else:
     img_orig *= 255 / img_orig.max()
 
 imgs_noisy: NDArray = np.stack(
-    [(img_orig + 50 * np.random.randn(*img_orig.shape)).clip(0, 255) for _ in tqdm(range(12), desc="Create noisy images")],
+    [
+        (img_orig + 50 * np.random.randn(*img_orig.shape)).clip(0, 255)
+        for _ in tqdm(range(NUM_IMGS_TOT), desc="Create noisy images")
+    ],
     axis=0,
 )
-dset_split = ad.DatasetSplit.create_sequential(num_trn_imgs=8, num_tst_imgs=4)
+tst_inds = np.arange(NUM_IMGS_TRN, NUM_IMGS_TOT)
 
 print(f"Img orig -> [{img_orig.min()}, {img_orig.max()}], Img noisy -> [{imgs_noisy[0].min()}, {imgs_noisy[0].max()}]")
 print(f"Img shape: {img_orig.shape}")
@@ -42,22 +48,22 @@ print(f"Img shape: {img_orig.shape}")
 
 net_params = ad.NetworkParamsUNet(n_features=16)
 
-denoiser_sup = ad.N2N(network_type=net_params, reg_tv_val=REG_TV_VAL)
-denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, dset_split=dset_split)
+denoiser_sup = ad.Denoiser(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
 
-denoiser_n2n = ad.N2N(network_type=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_n2n = ad.N2N(model=net_params, reg_tv_val=REG_TV_VAL)
 denoiser_n2n.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
 
-denoiser_n2v = ad.N2V(network_type=net_params, reg_tv_val=REG_TV_VAL)
-denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, dset_split=dset_split)
+denoiser_n2v = ad.N2V(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 
-denoiser_dip = ad.DIP(network_type=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_dip = ad.DIP(model=net_params, reg_tv_val=REG_TV_VAL)
 inp_dip = denoiser_dip.train_unsupervised(imgs_noisy, epochs=EPOCHS)
 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
 den_n2n = denoiser_n2n.infer(imgs_noisy).mean(0)
 den_n2v = denoiser_n2v.infer(imgs_noisy).mean(0)
-den_dip = denoiser_dip.infer(inp_dip).mean(0)
+den_dip = denoiser_dip.infer(inp_dip)
 
 fig, axs = plt.subplots(2, 3, sharex=True, sharey=True)
 axs[0, 0].imshow(img_orig)

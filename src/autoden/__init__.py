@@ -5,7 +5,6 @@ Unsupervised and self-supervised CNN denoising methods.
 
 from __future__ import annotations
 
-from autoden import datasets
 from autoden import models
 from autoden import losses
 
