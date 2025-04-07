@@ -305,6 +305,10 @@ class Denoiser:
                 loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
             loss_trn.backward()
 
+            for pars in self.net.parameters():
+                if pars.grad is not None:
+                    pars.grad[pt.logical_not(pt.isfinite(pars.grad))] = 0.0
+
             loss_trn_val = loss_trn.item()
             losses_trn.append(loss_trn_val)
 
@@ -391,6 +395,10 @@ class Denoiser:
             if lower_limit is not None:
                 loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
             loss_trn.backward()
+
+            for pars in self.net.parameters():
+                if pars.grad is not None:
+                    pars.grad[pt.logical_not(pt.isfinite(pars.grad))] = 0.0
 
             losses_trn.append(loss_trn.item())
             optim.step()
