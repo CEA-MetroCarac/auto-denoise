@@ -5,13 +5,15 @@ High level definition of CNN architectures.
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 
 import numpy as np
 from numpy.typing import NDArray
 
 from torch.cuda import is_available as is_cuda_available
 from torch.nn import Module
+from torch.optim.optimizer import Optimizer
+import torch as pt
 
 from .msd import MSDnet
 from .dncnn import DnCNN
@@ -222,3 +224,128 @@ class NetworkParamsDnCNN(NetworkParams):
             n_features=self.n_features,
             device=device,
         )
+
+
+def create_network(
+    model: str | NetworkParams | Mapping | Module,
+    state_dict: Mapping | None = None,
+    device: str = "cuda" if is_cuda_available() else "cpu",
+) -> Module:
+    """
+    Create and return a neural network model based on the provided network configuration.
+
+    Parameters
+    ----------
+    model : str | NetworkParams | Mapping | Module
+        The network configuration. It can be a string specifying the network type,
+        an instance of `NetworkParams`, or an already instantiated `Module`.
+        If a string is provided, it must be one of the supported network types:
+        "msd", "unet", or "dncnn".
+    state_dict : Mapping | None, optional
+        A dictionary containing the state dictionary of the model. If provided,
+        the model's parameters will be loaded from this dictionary. Default is None.
+    device : str, optional
+        The device to which the model should be moved. Default is "cuda" if CUDA is available,
+        otherwise "cpu".
+
+    Returns
+    -------
+    Module
+        The created neural network model.
+
+    Raises
+    ------
+    ValueError
+        If the provided network name is invalid or the network type is not supported.
+
+    Notes
+    -----
+    The function supports the following network types:
+    - "msd": Multi-Scale Dense Network.
+    - "unet": U-Net.
+    - "dncnn": Denoising Convolutional Neural Network.
+
+    Examples
+    --------
+    >>> net = create_network("unet")
+    >>> print(net)
+    Model UNet - num. parameters: 1234567
+    """
+    if isinstance(model, Mapping):
+        if ("model_class", "state_dict") not in model:
+            raise ValueError("Malformed model state dictionary. Expected two mandatory fields: 'model_class' and 'state_dict'")
+        state_dict = model["state_dict"]
+        model = model["model_class"]
+
+    if isinstance(model, str):
+        if model.lower() in ("msd", MSDnet.__name__.lower()):
+            model = NetworkParamsMSD()
+        elif model.lower() == UNet.__name__.lower():
+            model = NetworkParamsUNet()
+        elif model.lower() == DnCNN.__name__.lower():
+            model = NetworkParamsDnCNN()
+        else:
+            raise ValueError(f"Invalid model name: {model}")
+
+    if isinstance(model, NetworkParams):
+        net = model.get_model(device)
+    elif isinstance(model, Module):
+        net = model.to(device=device)
+    else:
+        raise ValueError(f"Invalid model type: {type(model)}")
+
+    if state_dict is not None:
+        net.load_state_dict(state_dict)
+        net.to(device)  # Needed to ensure that the model lives in the correct device
+
+    print(f"Model {net.__class__.__name__} - num. parameters: {sum(p.numel() for p in net.parameters() if p.requires_grad)}")
+    return net
+
+
+def create_optimizer(
+    network: Module,
+    algo: str = "adam",
+    learning_rate: float = 1e-3,
+    weight_decay: float = 1e-2,
+    optim_state: Mapping | None = None,
+) -> pt.optim.Optimizer:
+    """Instantiates the desired optimizer for the given model.
+
+    Parameters
+    ----------
+    network : torch.nn.Module
+        The network to train.
+    algo : str, optional
+        The requested optimizer, by default "adam".
+    learning_rate : float, optional
+        The desired learning rate, by default 1e-3.
+    weight_decay : float, optional
+        The desired weight decay, by default 1e-2.
+    optim_state : Mapping | None, optional
+        The state dictionary for the optimizer, by default None.
+
+    Returns
+    -------
+    torch.optim.Optimizer
+        The chosen optimizer.
+
+    Raises
+    ------
+    ValueError
+        If an unsupported algorithm is requested.
+    """
+    if algo.lower() == "adam":
+        optimizer = pt.optim.AdamW(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    elif algo.lower() == "sgd":
+        optimizer = pt.optim.SGD(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    elif algo.lower() == "rmsprop":
+        optimizer = pt.optim.RMSprop(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    elif algo.lower() == "lbfgs":
+        optimizer = pt.optim.LBFGS(network.parameters(), lr=learning_rate, max_iter=10000, history_size=50)
+    else:
+        raise ValueError(f"Unknown algorithm: {algo}")
+
+    if optim_state is not None:
+        optimizer.load_state_dict(dict(**optim_state))
+
+    return optimizer

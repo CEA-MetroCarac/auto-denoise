@@ -12,35 +12,41 @@ from torch.nn import Module
 def save_model_state(
     save_epochs_dir: str | Path,
     epoch_num: int,
-    model_state: Mapping,
+    model: Module,
     optim_state: Mapping | None = None,
     is_best: bool = False,
 ) -> None:
-    """Save a model to disk.
+    """Save a model's state to disk.
+
+    This function saves the state of a model and optionally its optimizer to disk.
+    The model state is saved in a directory specified by `save_epochs_dir`. If
+    `is_best` is True, the model state is saved as "weights.pt". Otherwise, it is
+    saved with a filename that includes the epoch number.
 
     Parameters
     ----------
     save_epochs_dir : str | Path
-        The directory where to save the model state
+        The directory where to save the model state.
     epoch_num : int
-        The epoch number
-    model_state : Mapping
-        The model state to save
+        The epoch number.
+    model : Module
+        The model whose state is to be saved.
     optim_state : Mapping, optional
-        The optimizer state to save, by default None
+        The optimizer state to save, by default None.
     is_best : bool, optional
-        Whether it is the best fitted model, by default False
+        Whether it is the best fitted model, by default False.
+
+    Returns
+    -------
+    None
     """
     epochs_base_path = Path(save_epochs_dir) / "weights"
     epochs_base_path.mkdir(parents=True, exist_ok=True)
 
-    if is_best:
-        pt.save({"epoch": epoch_num, "state_dict": model_state, "optimizer": optim_state}, epochs_base_path / "weights.pt")
-    else:
-        pt.save(
-            {"epoch": epoch_num, "state_dict": model_state, "optimizer": optim_state},
-            epochs_base_path / f"weights_epoch_{epoch_num}.pt",
-        )
+    pt.save(
+        {"model": model.__class__.__name__, "epoch": epoch_num, "state_dict": model.state_dict(), "optimizer": optim_state},
+        epochs_base_path / ("weights.pt" if is_best else f"weights_epoch_{epoch_num}.pt"),
+    )
 
 
 def load_model_state(save_epochs_dir: str | Path, epoch_num: int | None = None) -> Mapping:

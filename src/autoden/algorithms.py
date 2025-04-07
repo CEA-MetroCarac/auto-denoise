@@ -12,7 +12,7 @@ from numpy.typing import DTypeLike, NDArray
 from tqdm.auto import tqdm
 from autoden import losses
 from autoden.io import load_model_state, save_model_state
-from autoden.models.config import NetworkParams, NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet
+from autoden.models.config import NetworkParams, create_network, create_optimizer
 
 
 def _get_normalization(vol: NDArray, percentile: float | None = None) -> tuple[float, float, float]:
@@ -77,35 +77,6 @@ def _random_probe_mask(
     return mask
 
 
-def _create_network(
-    network: str | NetworkParams,
-    device: str = "cuda" if pt.cuda.is_available() else "cpu",
-) -> pt.nn.Module:
-    if isinstance(network, str):
-        if network.lower() == "msd":
-            network = NetworkParamsMSD()
-        elif network.lower() == "unet":
-            network = NetworkParamsUNet()
-        elif network.lower() == "dncnn":
-            network = NetworkParamsDnCNN()
-        else:
-            raise ValueError(f"Invalid network name: {network}")
-
-    net = network.get_model(device)
-
-    print(f"Model {net.__class__.__name__} - num. parameters: {sum(p.numel() for p in net.parameters() if p.requires_grad)}")
-    return net
-
-
-def _create_optimizer(network: pt.nn.Module, algo: str = "adam", learning_rate: float = 1e-3, weight_decay: float = 1e-2):
-    if algo.lower() == "adam":
-        return pt.optim.AdamW(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    elif algo.lower() == "rmsprop":
-        return pt.optim.RMSprop(network.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    else:
-        raise ValueError(f"Unknown algorithm: {algo}")
-
-
 @dataclass
 class DataScalingBias:
     """Data scaling and bias."""
@@ -161,7 +132,7 @@ class Denoiser:
 
     def __init__(
         self,
-        model: str | NetworkParams | pt.nn.Module | Mapping | None,
+        model: int | str | NetworkParams | pt.nn.Module | Mapping,
         data_scaling_bias: DataScalingBias | None = None,
         reg_tv_val: float | None = 1e-5,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
@@ -188,23 +159,16 @@ class Denoiser:
         verbose : bool, optional
             Whether to produce verbose output, by default True
         """
-        if model is None or isinstance(model, (int, Mapping)):
-            if isinstance(model, int):
-                if self.save_epochs_dir is None:
-                    raise ValueError("Directory for saving epochs not specified")
+        if isinstance(model, int):
+            if self.save_epochs_dir is None:
+                raise ValueError("Directory for saving epochs not specified")
 
-                state_dict = load_model_state(self.save_epochs_dir, epoch_num=model)
-                model = state_dict["state_dict"]
+            model = load_model_state(self.save_epochs_dir, epoch_num=model)
 
-            if isinstance(model, Mapping):
-                self.net.load_state_dict(model)
-                self.net.to(self.device)
-            else:
-                raise ValueError(f"Invalid model state: {model}")
-        elif isinstance(model, (str, NetworkParams)):
-            self.net = _create_network(model, device=device)
-        elif isinstance(model, pt.nn.Module):
-            self.net = model
+        if isinstance(model, (str, NetworkParams, Mapping, pt.nn.Module)):
+            self.net = create_network(model, device=device)
+        else:
+            raise ValueError(f"Invalid model {type(model)}")
 
         self.data_sb = data_scaling_bias
 
@@ -276,7 +240,7 @@ class Denoiser:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = _create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.net, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
@@ -333,13 +297,13 @@ class Denoiser:
 
             # Save epoch
             if self.save_epochs_dir:
-                self._save_state(epoch, self.net.state_dict(), optim.state_dict())
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.net.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
-            self._save_state(best_epoch, best_state, best_optim, is_best=True)
-
-        self.net.load_state_dict(best_state)
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
         return np.array(losses_trn), np.array(losses_tst)
 
@@ -356,7 +320,7 @@ class Denoiser:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = _create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.net, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
@@ -417,30 +381,24 @@ class Denoiser:
 
             # Save epoch
             if self.save_epochs_dir is not None:
-                save_model_state(
-                    self.save_epochs_dir, epoch_num=epoch, model_state=self.net.state_dict(), optim_state=optim.state_dict()
-                )
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.net.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir is not None:
-            save_model_state(
-                self.save_epochs_dir, epoch_num=best_epoch, model_state=best_state, optim_state=best_optim, is_best=True
-            )
-
-        self.net.load_state_dict(best_state)
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
         losses_trn = np.array(losses_trn)
         losses_tst = np.array(losses_tst)
 
         return losses_trn, losses_tst
 
-    def _save_state(self, epoch_num: int, model_state: Mapping, optim_state: Mapping, is_best: bool = False) -> None:
+    def _save_state(self, epoch_num: int, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")
 
-        save_model_state(
-            self.save_epochs_dir, epoch_num=epoch_num, model_state=model_state, optim_state=optim_state, is_best=is_best
-        )
+        save_model_state(self.save_epochs_dir, epoch_num=epoch_num, model=self.net, optim_state=optim_state, is_best=is_best)
 
     def _load_state(self, epoch_num: int | None = None) -> None:
         if self.save_epochs_dir is None:
@@ -528,6 +486,7 @@ class N2N(Denoiser):
         tmp_inp = tmp_inp.astype(np.float32)
         tmp_tgt = tmp_tgt.astype(np.float32)
 
+        # reg = losses.LossTV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_pixelmask_small(
             tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg, lower_limit=lower_limit
@@ -607,7 +566,7 @@ class N2V(Denoiser):
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = _create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.net, algo=algo)
 
         best_epoch = -1
         best_loss_tst = +np.inf
@@ -671,13 +630,13 @@ class N2V(Denoiser):
 
             # Save epoch
             if self.save_epochs_dir:
-                self._save_state(epoch, self.net.state_dict(), optim.state_dict())
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.net.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
-            self._save_state(best_epoch, best_state, best_optim, is_best=True)
-
-        self.net.load_state_dict(best_state)
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
         losses_trn = np.array(losses_trn)
         losses_tst = np.array(losses_tst)
