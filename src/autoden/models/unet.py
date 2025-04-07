@@ -5,8 +5,7 @@ Originally inspired by:
 https://github.com/milesial/Pytorch-UNet
 """
 
-from typing import Union
-
+from typing import overload, Literal
 import torch as pt
 import torch.nn as nn
 
@@ -21,7 +20,7 @@ def _get_alignment_padding(inp_hw: tuple[int, int], n_levels: int = 1, kernel_si
     return (padded_w // 2, padded_w - padded_w // 2, padded_h // 2, padded_h - padded_h // 2)
 
 
-def _get_padding_block(pad_size: Union[int, tuple[int, int, int, int]], pad_mode: str) -> nn.Module:
+def _get_padding_block(pad_size: int | tuple[int, int, int, int], pad_mode: str) -> nn.Module:
     if pad_mode.lower() == "zeros":
         return nn.ConstantPad2d(pad_size, value=0.0)
     elif pad_mode.lower() == "replicate":
@@ -111,9 +110,7 @@ class DownBlock(nn.Sequential):
 class UpBlock(nn.Module):
     """Up-scaling block."""
 
-    def __init__(
-        self, in_ch: int, skip_ch: Union[int, None], out_ch: int, bilinear: bool = False, pad_mode: str = "replicate"
-    ):
+    def __init__(self, in_ch: int, skip_ch: int | None, out_ch: int, bilinear: bool = False, pad_mode: str = "replicate"):
         super().__init__()
         self.skip_ch = skip_ch
 
@@ -147,7 +144,7 @@ class UpBlock(nn.Module):
         return self.conv_block(x_comb)
 
 
-def _compute_architecture(n_levels: int, n_features: int, n_skip: Union[int, None], verbose: bool = False) -> tuple:
+def _compute_architecture(n_levels: int, n_features: int, n_skip: int | None, verbose: bool = False) -> tuple:
     encoder = [(2**lvl, 2 ** (lvl + (lvl < (n_levels - 1)))) for lvl in range(n_levels)]
     decoder = [(2 ** (lvl - 1), 2 ** (lvl - 1), 2 ** max(lvl - 2, 0)) for lvl in range(n_levels, 0, -1)]
     if verbose:
@@ -189,7 +186,7 @@ class UNet(nn.Module):
         n_channels_out: int,
         n_features: int = 32,
         n_levels: int = 3,
-        n_channels_skip: Union[int, None] = None,
+        n_channels_skip: int | None = None,
         bilinear: bool = True,
         pad_mode: str = "replicate",
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
@@ -220,13 +217,20 @@ class UNet(nn.Module):
             )
         self.to(self.device)
 
-    def forward(self, inp_x: pt.Tensor, return_latent: bool = False) -> Union[pt.Tensor, tuple[pt.Tensor, pt.Tensor]]:
+    @overload
+    def forward(self, inp_x: pt.Tensor, *, return_latent: Literal[False] = False) -> pt.Tensor: ...
+
+    @overload
+    def forward(self, inp_x: pt.Tensor, *, return_latent: Literal[True] = True) -> tuple[pt.Tensor, pt.Tensor]: ...
+
+    def forward(self, inp_x: pt.Tensor, *, return_latent: bool = False) -> pt.Tensor | tuple[pt.Tensor, pt.Tensor]:
         tmps: list[pt.Tensor] = [self.in_layer(inp_x)]
         for d_l in self.encoder_layers:
             tmps.append(d_l(tmps[-1]))
 
         out_x = self.decoder_layers[0](tmps[-1], tmps[-2])
-        for ii_u, u_l in enumerate(self.decoder_layers[1:]):
+        decoder_layers = [*self.decoder_layers]
+        for ii_u, u_l in enumerate(decoder_layers[1:]):
             out_x = u_l(out_x, tmps[-(ii_u + 3)])
         out_x = self.out_layer(out_x)
 
