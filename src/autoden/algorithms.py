@@ -271,11 +271,15 @@ class Denoiser:
         epochs: int,
         algo: str = "adam",
         regularizer: losses.LossRegularizer | None = None,
+        lower_limit: float | NDArray | None = None,
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = _create_optimizer(self.net, algo=algo)
+
+        if lower_limit is not None and self.data_sb is not None:
+            lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
@@ -297,6 +301,8 @@ class Denoiser:
             loss_trn = loss_data_fn(out_trn, tgt_trn_t)
             if regularizer is not None:
                 loss_trn += regularizer(out_trn)
+            if lower_limit is not None:
+                loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
             loss_trn.backward()
 
             loss_trn_val = loss_trn.item()
@@ -341,11 +347,15 @@ class Denoiser:
         epochs: int,
         algo: str = "adam",
         regularizer: losses.LossRegularizer | None = None,
+        lower_limit: float | NDArray | None = None,
     ) -> tuple[NDArray, NDArray]:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = _create_optimizer(self.net, algo=algo)
+
+        if lower_limit is not None and self.data_sb is not None:
+            lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
@@ -378,6 +388,8 @@ class Denoiser:
             loss_trn = loss_data_fn(out_trn, tgt_trn)
             if regularizer is not None:
                 loss_trn += regularizer(out_t)
+            if lower_limit is not None:
+                loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
             loss_trn.backward()
 
             losses_trn.append(loss_trn.item())
@@ -477,7 +489,13 @@ class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
     def train_selfsupervised(
-        self, inp: NDArray, epochs: int, num_tst_ratio: float = 0.2, strategy: str = "1:X", algo: str = "adam"
+        self,
+        inp: NDArray,
+        epochs: int,
+        num_tst_ratio: float = 0.2,
+        strategy: str = "1:X",
+        algo: str = "adam",
+        lower_limit: float | NDArray | None = None,
     ) -> None:
         if self.data_sb is None:
             self.data_sb = DataScalingBias.compute_selfsupervised(inp)
@@ -504,7 +522,7 @@ class N2N(Denoiser):
 
         reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
         losses_trn, losses_tst = self._train_pixelmask_small(
-            tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg
+            tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg, lower_limit=lower_limit
         )
 
         if self.verbose:
