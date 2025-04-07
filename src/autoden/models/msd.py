@@ -1,7 +1,7 @@
-"""Module implmenting MS-D net."""
+"""Module implementing MS-D net."""
 
 from collections.abc import Sequence
-from typing import Union
+from typing import overload, Literal
 
 import torch as pt
 import torch.nn as nn
@@ -16,6 +16,34 @@ class DilatedConvBlock(nn.Sequential):
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(0.2, inplace=True),
         )
+
+
+class MSDBlock(nn.Module):
+    """MS-D Block containing the sequence of dilated convolutional layers."""
+
+    def __init__(
+        self, n_channels_in: int, n_features: int, n_layers: int, dilations: Sequence[int], use_function: bool = False
+    ) -> None:
+        super().__init__()
+        self.n_features = n_features
+        self.n_layers = n_layers
+        self.dilations = dilations
+        convs = [
+            DilatedConvBlock(n_channels_in + n_features * ii, n_features, dilation=self._layer_dilation(ii))
+            for ii in range(n_layers)
+        ]
+        self.convs = nn.ModuleList(convs)
+        self.use_function = use_function
+        self.n_ch_in = n_channels_in
+
+    def _layer_dilation(self, ind: int) -> int:
+        return self.dilations[ind % len(self.dilations)]
+
+    def forward(self, x: pt.Tensor) -> pt.Tensor:
+        latent = [x]
+        for conv in self.convs:
+            latent.append(conv(pt.cat(latent, dim=1)))
+        return pt.cat(latent, dim=1)
 
 
 class MSDnet(nn.Module):
@@ -38,27 +66,20 @@ class MSDnet(nn.Module):
         self.n_nodes = n_features
         self.device = device
 
-        convs = [
-            DilatedConvBlock(n_channels_in + n_features * ii, n_features, dilation=self._layer_dilation(ii))
-            for ii in range(n_layers)
-        ]
-        self.convs = nn.ModuleList(convs)
+        self.msd_block = MSDBlock(n_channels_in, n_features, n_layers, dilations)
         self.outc = nn.Conv2d(n_channels_in + n_features * n_layers, n_channels_out, kernel_size=1)
 
         self.to(self.device)
 
-    def _layer_dilation(self, ind: int) -> int:
-        return self.dilations[ind % len(self.dilations)]
+    @overload
+    def forward(self, x: pt.Tensor, *, return_latent: Literal[False] = False) -> pt.Tensor: ...
 
-    def forward(self, x: pt.Tensor, return_latent: bool = False) -> Union[pt.Tensor, tuple[pt.Tensor, pt.Tensor]]:
-        latent = [x]
-        for ii_layer in range(self.n_layers):
-            temp_x = pt.cat(latent, dim=1)
-            latent.append(self.convs[ii_layer](temp_x))
+    @overload
+    def forward(self, x: pt.Tensor, *, return_latent: Literal[True] = True) -> tuple[pt.Tensor, pt.Tensor]: ...
 
-        latent = pt.cat(latent, dim=1)
+    def forward(self, x: pt.Tensor, *, return_latent: bool = False) -> pt.Tensor | tuple[pt.Tensor, pt.Tensor]:
+        latent = self.msd_block(x)
         x = self.outc(latent)
-
         if return_latent:
             return x, latent
         else:
