@@ -68,9 +68,10 @@ class NetworkParamsMSD(NetworkParams):
         self,
         n_channels_in: int = 1,
         n_channels_out: int = 1,
-        n_layers: int = 80,
+        n_layers: int = 12,
         n_features: int = 1,
-        dilations: Sequence[int] | NDArray[np.integer] = np.arange(1, 10),
+        dilations: Sequence[int] | NDArray[np.integer] = np.arange(1, 4),
+        use_dilations: bool = True,
     ) -> None:
         """Initialize the MS-D network parameters definition.
 
@@ -81,15 +82,16 @@ class NetworkParamsMSD(NetworkParams):
         n_channels_out : int, optional
             Number of output channels, by default 1.
         n_layers : int, optional
-            Number of layers in the network, by default 80.
+            Number of layers in the network, by default 12.
         n_features : int, optional
             Number of features, by default 1.
         dilations : Sequence[int] | NDArray[np.integer], optional
-            Dilation values for the network, by default np.arange(1, 10).
+            Dilation values for the network, by default np.arange(1, 4).
         """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
         self.dilations = dilations
+        self.use_dilations = use_dilations
 
     def get_model(self, device: str = "cuda" if is_cuda_available() else "cpu") -> Module:
         """Get a MS-D net model with the selected parameters.
@@ -111,6 +113,7 @@ class NetworkParamsMSD(NetworkParams):
             n_features=self.n_features,
             dilations=list(self.dilations),
             device=device,
+            use_dilations=not self.use_dilations,
         )
 
 
