@@ -1,13 +1,14 @@
 """
 This example shows a comparison of supervised and self-supervised denoising.
 
-@author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
+@author: Nicola VIGANÒ, UGA, CEA-IRIG, MEM, Grenoble, France
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
 import skimage.color as skc
 import skimage.data as skd
+import skimage.transform as skt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 import autoden as ad
@@ -19,20 +20,18 @@ NUM_IMGS_TST = 2
 NUM_IMGS_TOT = NUM_IMGS_TRN + NUM_IMGS_TST
 
 EPOCHS = 1024
-REG_TV_VAL = None
+REG_TV_VAL = 1e-7
 
 if USE_CAMERA_MAN:
     img_orig = skd.camera()
+    img_orig = skt.downscale_local_mean(img_orig, 4)
 else:
     img_orig = skd.cat()
     img_orig = skc.rgb2gray(img_orig)
     img_orig *= 255 / img_orig.max()
 
 imgs_noisy: NDArray = np.stack(
-    [
-        (img_orig + 50 * np.random.randn(*img_orig.shape)).clip(0, 255)
-        for _ in tqdm(range(NUM_IMGS_TOT), desc="Create noisy images")
-    ],
+    [(img_orig + 20 * np.random.randn(*img_orig.shape)) for _ in tqdm(range(NUM_IMGS_TOT), desc="Create noisy images")],
     axis=0,
 )
 tst_inds = np.arange(NUM_IMGS_TRN, NUM_IMGS_TOT)
