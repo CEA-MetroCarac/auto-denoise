@@ -15,4 +15,4 @@ from .msd import MSDnet
 from .dncnn import DnCNN
 
 from . import config
-from . import utils
+from . import param_utils
