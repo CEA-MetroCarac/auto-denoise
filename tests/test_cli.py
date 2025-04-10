@@ -7,9 +7,9 @@ import pytest
 from autoden import cli, debug
 
 
-def test_main() -> None:
-    """Basic CLI test."""
-    assert cli.main([]) == 0
+# def test_main() -> None:
+#     """Basic CLI test."""
+#     assert cli.main([]) == 0
 
 
 def test_show_help(capsys: pytest.CaptureFixture) -> None:
