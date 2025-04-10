@@ -121,7 +121,7 @@ def main(args: list[str] | None = None) -> int:
     net_pars = NetworkParamsUNet(n_levels=opts.unet_levels, n_features=opts.unet_features)
 
     if opts.algorithm.upper() == "DIP":
-        algo = DIP(network_type=net_pars, reg_tv_val=opts.regularization)
+        algo = DIP(model=net_pars, reg_tv_val=opts.regularization)
         inp_img = algo.train_unsupervised(inp_imgs_stack, epochs=opts.epochs)
         out_img = algo.infer(inp_img)
     elif opts.algorithm.upper() == "N2N":
@@ -129,7 +129,7 @@ def main(args: list[str] | None = None) -> int:
             print(f"Not enough input images, only {len(inp_imgs)} were passed.")
             return 1
 
-        algo = N2N(network_type=net_pars, reg_tv_val=opts.regularization)
+        algo = N2N(model=net_pars, reg_tv_val=opts.regularization)
         algo.train_selfsupervised(inp_imgs_stack, epochs=opts.epochs)
         out_img = algo.infer(inp_imgs_stack)
     else:
