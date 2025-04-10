@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 from autoden import losses
 from autoden.io import load_model_state, save_model_state
 from autoden.models.config import NetworkParams, create_network, create_optimizer
+from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
 
 
 def _get_normalization(vol: NDArray, percentile: float | None = None) -> tuple[float, float, float]:
@@ -32,7 +33,7 @@ def _single_channel_imgs_to_tensor(imgs: NDArray, device: str, dtype: DTypeLike 
 
 def _random_probe_mask(
     img_shape: Sequence[int] | NDArray,
-    mask_shape: int | Sequence[int] | NDArray = [1, 5],
+    mask_shape: int | Sequence[int] | NDArray = 1,
     ratio_blind_spots: float = 0.02,
     verbose: bool = False,
 ) -> NDArray:
@@ -89,34 +90,62 @@ class DataScalingBias:
     bias_out: float | NDArray = 0.0
     bias_tgt: float | NDArray = 0.0
 
-    @staticmethod
-    def compute_supervised(inp: NDArray, tgt: NDArray) -> "DataScalingBias":
-        range_vals_inp = _get_normalization(inp, percentile=0.001)
-        range_vals_tgt = _get_normalization(tgt, percentile=0.001)
 
-        sb = DataScalingBias()
-        sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-        sb.scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-        sb.scaling_out = sb.scaling_tgt
+def compute_scaling_supervised(inp: NDArray, tgt: NDArray) -> DataScalingBias:
+    """
+    Compute input and target data scaling and bias for supervised learning.
 
-        sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
-        sb.bias_tgt = range_vals_tgt[2] * sb.scaling_tgt
-        sb.bias_out = sb.bias_tgt
+    Parameters
+    ----------
+    inp : NDArray
+        Input data.
+    tgt : NDArray
+        Target data.
 
-        return sb
+    Returns
+    -------
+    DataScalingBias
+        An instance of DataScalingBias containing the computed scaling and bias values.
+    """
+    range_vals_inp = _get_normalization(inp, percentile=0.001)
+    range_vals_tgt = _get_normalization(tgt, percentile=0.001)
 
-    @staticmethod
-    def compute_selfsupervised(inp: NDArray) -> "DataScalingBias":
-        range_vals_inp = _get_normalization(inp, percentile=0.001)
+    sb = DataScalingBias()
+    sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    sb.scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
+    sb.scaling_out = sb.scaling_tgt
 
-        sb = DataScalingBias()
-        sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-        sb.scaling_out = sb.scaling_tgt = sb.scaling_inp
+    sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
+    sb.bias_tgt = range_vals_tgt[2] * sb.scaling_tgt
+    sb.bias_out = sb.bias_tgt
 
-        sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
-        sb.bias_out = sb.bias_tgt = sb.bias_inp
+    return sb
 
-        return sb
+
+def compute_scaling_selfsupervised(inp: NDArray) -> DataScalingBias:
+    """
+    Compute input data scaling and bias for self-supervised learning.
+
+    Parameters
+    ----------
+    inp : NDArray
+        Input data.
+
+    Returns
+    -------
+    DataScalingBias
+        An instance of DataScalingBias containing the computed scaling and bias values.
+    """
+    range_vals_inp = _get_normalization(inp, percentile=0.001)
+
+    sb = DataScalingBias()
+    sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    sb.scaling_out = sb.scaling_tgt = sb.scaling_inp
+
+    sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
+    sb.bias_out = sb.bias_tgt = sb.bias_inp
+
+    return sb
 
 
 class Denoiser:
@@ -124,7 +153,7 @@ class Denoiser:
 
     data_sb: DataScalingBias | None
 
-    net: pt.nn.Module
+    model: pt.nn.Module
     device: str
 
     save_epochs_dir: str | None
@@ -166,9 +195,11 @@ class Denoiser:
             model = load_model_state(self.save_epochs_dir, epoch_num=model)
 
         if isinstance(model, (str, NetworkParams, Mapping, pt.nn.Module)):
-            self.net = create_network(model, device=device)
+            self.model = create_network(model, device=device)
         else:
             raise ValueError(f"Invalid model {type(model)}")
+        if verbose:
+            get_num_parameters(self.model, verbose=True)
 
         self.data_sb = data_scaling_bias
 
@@ -212,7 +243,7 @@ class Denoiser:
             tgt = np.tile(tgt[None, ...], [num_imgs, *np.ones_like(tgt.shape)])
 
         if self.data_sb is None:
-            self.data_sb = DataScalingBias.compute_supervised(inp, tgt)
+            self.data_sb = compute_scaling_supervised(inp, tgt)
 
         # Rescale the datasets
         inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
@@ -240,14 +271,14 @@ class Denoiser:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.model, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
-        best_state = self.net.state_dict()
+        best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
         inp_trn_t = _single_channel_imgs_to_tensor(dset_trn[0], device=self.device)
@@ -258,10 +289,10 @@ class Denoiser:
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
-            self.net.train()
+            self.model.train()
 
             optim.zero_grad()
-            out_trn: pt.Tensor = self.net(inp_trn_t)
+            out_trn: pt.Tensor = self.model(inp_trn_t)
             loss_trn = loss_data_fn(out_trn, tgt_trn_t)
             if regularizer is not None:
                 loss_trn += regularizer(out_trn)
@@ -269,9 +300,7 @@ class Denoiser:
                 loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
             loss_trn.backward()
 
-            for pars in self.net.parameters():
-                if pars.grad is not None:
-                    pars.grad[pt.logical_not(pt.isfinite(pars.grad))] = 0.0
+            fix_invalid_gradient_values(self.model)
 
             loss_trn_val = loss_trn.item()
             losses_trn.append(loss_trn_val)
@@ -279,10 +308,10 @@ class Denoiser:
             optim.step()
 
             # Test
-            self.net.eval()
+            self.model.eval()
             loss_tst_val = 0
             with pt.inference_mode():
-                out_tst = self.net(inp_tst_t)
+                out_tst = self.model(inp_tst_t)
                 loss_tst = loss_data_fn(out_tst, tgt_tst_t)
 
                 loss_tst_val = loss_tst.item()
@@ -292,14 +321,14 @@ class Denoiser:
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
                 best_loss_tst = losses_tst[-1]
                 best_epoch = epoch
-                best_state = cp.deepcopy(self.net.state_dict())
+                best_state = cp.deepcopy(self.model.state_dict())
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
             if self.save_epochs_dir:
                 self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
 
-        self.net.load_state_dict(best_state)
+        self.model.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
@@ -320,14 +349,14 @@ class Denoiser:
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.model, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
-        best_state = self.net.state_dict()
+        best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
         n_dims = inp.ndim
@@ -339,11 +368,11 @@ class Denoiser:
         mask_trn_t = pt.tensor(mask_trn, device=self.device)
         mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
 
-        self.net.train()
+        self.model.train()
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
             optim.zero_grad()
-            out_t: pt.Tensor = self.net(inp_t)
+            out_t: pt.Tensor = self.model(inp_t)
             if n_dims == 2:
                 out_t_mask = out_t[0, 0]
             else:
@@ -360,9 +389,7 @@ class Denoiser:
                 loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
             loss_trn.backward()
 
-            for pars in self.net.parameters():
-                if pars.grad is not None:
-                    pars.grad[pt.logical_not(pt.isfinite(pars.grad))] = 0.0
+            fix_invalid_gradient_values(self.model)
 
             losses_trn.append(loss_trn.item())
             optim.step()
@@ -376,14 +403,14 @@ class Denoiser:
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
                 best_loss_tst = losses_tst[-1]
                 best_epoch = epoch
-                best_state = cp.deepcopy(self.net.state_dict())
+                best_state = cp.deepcopy(self.model.state_dict())
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
             if self.save_epochs_dir is not None:
                 self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
 
-        self.net.load_state_dict(best_state)
+        self.model.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir is not None:
@@ -398,14 +425,14 @@ class Denoiser:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")
 
-        save_model_state(self.save_epochs_dir, epoch_num=epoch_num, model=self.net, optim_state=optim_state, is_best=is_best)
+        save_model_state(self.save_epochs_dir, epoch_num=epoch_num, model=self.model, optim_state=optim_state, is_best=is_best)
 
     def _load_state(self, epoch_num: int | None = None) -> None:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")
 
         state_dict = load_model_state(self.save_epochs_dir, epoch_num=epoch_num)
-        self.net.load_state_dict(state_dict["state_dict"])
+        self.model.load_state_dict(state_dict["state_dict"])
 
     def _plot_loss_curves(self, train_loss: NDArray, test_loss: NDArray, title: str | None = None) -> None:
         test_argmin = int(np.argmin(test_loss))
@@ -439,10 +466,10 @@ class Denoiser:
 
         inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
 
-        self.net.eval()
+        self.model.eval()
         with pt.inference_mode():
-            out_t = pt.squeeze(self.net(inp_t))
-            output = out_t.to("cpu").numpy()
+            out_t: pt.Tensor = self.model(inp_t)
+            output = out_t.to("cpu").numpy().reshape(inp.shape)
 
         # Rescale output
         if self.data_sb is not None:
@@ -464,7 +491,7 @@ class N2N(Denoiser):
         lower_limit: float | NDArray | None = None,
     ) -> None:
         if self.data_sb is None:
-            self.data_sb = DataScalingBias.compute_selfsupervised(inp)
+            self.data_sb = compute_scaling_selfsupervised(inp)
 
         # Rescale the datasets
         inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
@@ -532,7 +559,7 @@ class N2V(Denoiser):
         trn_inds = np.delete(np.arange(num_imgs), obj=tst_inds)
 
         if self.data_sb is None:
-            self.data_sb = DataScalingBias.compute_selfsupervised(inp)
+            self.data_sb = compute_scaling_selfsupervised(inp)
 
         # Rescale the datasets
         inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
@@ -566,11 +593,11 @@ class N2V(Denoiser):
         losses_trn = []
         losses_tst = []
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.net, algo=algo)
+        optim = create_optimizer(self.model, algo=algo)
 
         best_epoch = -1
         best_loss_tst = +np.inf
-        best_state = self.net.state_dict()
+        best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
         inp_trn_t = _single_channel_imgs_to_tensor(inp_trn, device=self.device)
@@ -578,7 +605,7 @@ class N2V(Denoiser):
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
-            self.net.train()
+            self.model.train()
 
             mask = _random_probe_mask(inp_trn_t.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
             to_damage = np.where(mask > 0)
@@ -590,7 +617,7 @@ class N2V(Denoiser):
             )
 
             optim.zero_grad()
-            out_trn = self.net(inp_trn_damaged)
+            out_trn = self.model(inp_trn_damaged)
             out_to_check = out_trn[..., to_check[0], to_check[1]].flatten()
             ref_to_check = inp_trn_t[..., to_check[0], to_check[1]].flatten()
 
@@ -599,11 +626,13 @@ class N2V(Denoiser):
                 loss_trn += regularizer(out_trn)
             loss_trn.backward()
 
+            fix_invalid_gradient_values(self.model)
+
             losses_trn.append(loss_trn.item())
             optim.step()
 
             # Test
-            self.net.eval()
+            self.model.eval()
             with pt.inference_mode():
                 mask = _random_probe_mask(inp_tst_t.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
                 to_damage = np.where(mask > 0)
@@ -614,7 +643,7 @@ class N2V(Denoiser):
                     size_to_damage, device=inp_tst_t.device, dtype=inp_tst_t.dtype
                 )
 
-                out_tst = self.net(inp_tst_damaged)
+                out_tst = self.model(inp_tst_damaged)
                 out_to_check = out_tst[..., to_check[0], to_check[1]].flatten()
                 ref_to_check = inp_tst_t[..., to_check[0], to_check[1]].flatten()
                 loss_tst = loss_data_fn(out_to_check, ref_to_check)
@@ -625,14 +654,14 @@ class N2V(Denoiser):
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
                 best_loss_tst = losses_tst[-1]
                 best_epoch = epoch
-                best_state = cp.deepcopy(self.net.state_dict())
+                best_state = cp.deepcopy(self.model.state_dict())
                 best_optim = cp.deepcopy(optim.state_dict())
 
             # Save epoch
             if self.save_epochs_dir:
                 self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
 
-        self.net.load_state_dict(best_state)
+        self.model.load_state_dict(best_state)
 
         print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
         if self.save_epochs_dir:
@@ -650,11 +679,41 @@ class DIP(Denoiser):
     def train_unsupervised(
         self, tgt: NDArray, epochs: int, inp: NDArray | None = None, num_tst_ratio: float = 0.2, algo: str = "adam"
     ) -> NDArray:
+        """
+        Train the model in an unsupervised manner.
+
+        Parameters
+        ----------
+        tgt : NDArray
+            The target image to be denoised.
+        epochs : int
+            The number of training epochs.
+        inp : NDArray | None, optional
+            The input image. If None, a random image will be generated.
+            Default is None.
+        num_tst_ratio : float, optional
+            The ratio of the test set size to the total dataset size.
+            Default is 0.2.
+        algo : str, optional
+            The optimization algorithm to use. Default is "adam".
+
+        Returns
+        -------
+        NDArray
+            The denoised input image.
+
+        Notes
+        -----
+        This method trains the model using the deep image prior approach in an unsupervised manner.
+        It uses a random initialization for the input image if not provided and applies a scaling and bias
+        transformation to the input and target images. It then splits the data into training and test sets
+        based on the provided ratio and trains the model using the specified optimization algorithm.
+        """
         if inp is None:
             inp = np.random.normal(size=tgt.shape[-2:], scale=0.25).astype(tgt.dtype)
 
         if self.data_sb is None:
-            self.data_sb = DataScalingBias.compute_supervised(inp, tgt)
+            self.data_sb = compute_scaling_supervised(inp, tgt)
 
         # Rescale the datasets
         tmp_inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
