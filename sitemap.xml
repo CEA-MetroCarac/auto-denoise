@@ -2,67 +2,78 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/changelog/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/code_of_conduct/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/contributing/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/credits/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/license/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/algorithms/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/SUMMARY/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/cli/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/datasets/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/losses/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/cli/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/models/config/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/debug/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/models/dncnn/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/io/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/models/msd/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/losses/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/models/unet/</loc>
-         <lastmod>2024-06-04</lastmod>
-         <changefreq>daily</changefreq>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/</loc>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/config/</loc>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/dncnn/</loc>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/msd/</loc>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/param_utils/</loc>
+         <lastmod>2025-04-11</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/unet/</loc>
+         <lastmod>2025-04-11</lastmod>
     </url>
 </urlset>
