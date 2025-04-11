@@ -63,7 +63,3 @@ pip install -e .
 Contributions are always welcome. Please submit pull requests against the `main` branch.
 
 If you have any issues, questions, or remarks, then please open an issue on github.com.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

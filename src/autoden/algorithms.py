@@ -174,11 +174,9 @@ class Denoiser:
         ----------
         model : str | NetworkParams | pt.nn.Module | Mapping | None
             Type of neural network to use or a specific network (or state) to use
-        data_scaling_inp : Union[float, None], optional
-            Scaling of the input data, by default None
-        data_scaling_tgt : Union[float, None], optional
-            Scaling of the output, by default None
-        reg_tv_val : Union[float, None], optional
+        data_scaling_bias : DataScalingBias | None, optional
+            Scaling and bias of the input data, by default None
+        reg_tv_val : float | None, optional
             Deep-image prior regularization value, by default 1e-5
         device : str, optional
             Device to use, by default "cuda" if cuda is available, otherwise "cpu"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Models sub-package.
 
-Implementation of models like DnCNN, MSDnet, and UNet.
+Implementation of models like DnCNN, MS-D net, and UNet.
 
 Adapted from:
 https://github.com/ahendriksen/noise2inverse
