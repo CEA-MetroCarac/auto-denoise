@@ -79,19 +79,19 @@ def _random_probe_mask(
 
 
 @dataclass
-class DataScalingBias:
-    """Data scaling and bias."""
+class DataScaleBias:
+    """Data scale and bias."""
 
-    scaling_inp: float | NDArray = 1.0
-    scaling_out: float | NDArray = 1.0
-    scaling_tgt: float | NDArray = 1.0
+    scale_inp: float | NDArray = 1.0
+    scale_out: float | NDArray = 1.0
+    scale_tgt: float | NDArray = 1.0
 
     bias_inp: float | NDArray = 0.0
     bias_out: float | NDArray = 0.0
     bias_tgt: float | NDArray = 0.0
 
 
-def compute_scaling_supervised(inp: NDArray, tgt: NDArray) -> DataScalingBias:
+def compute_scaling_supervised(inp: NDArray, tgt: NDArray) -> DataScaleBias:
     """
     Compute input and target data scaling and bias for supervised learning.
 
@@ -104,25 +104,25 @@ def compute_scaling_supervised(inp: NDArray, tgt: NDArray) -> DataScalingBias:
 
     Returns
     -------
-    DataScalingBias
-        An instance of DataScalingBias containing the computed scaling and bias values.
+    DataScaleBias
+        An instance of DataScaleBias containing the computed scaling and bias values.
     """
     range_vals_inp = _get_normalization(inp, percentile=0.001)
     range_vals_tgt = _get_normalization(tgt, percentile=0.001)
 
-    sb = DataScalingBias()
-    sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-    sb.scaling_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
-    sb.scaling_out = sb.scaling_tgt
+    sb = DataScaleBias()
+    sb.scale_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    sb.scale_tgt = 1 / (range_vals_tgt[1] - range_vals_tgt[0])
+    sb.scale_out = sb.scale_tgt
 
-    sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
-    sb.bias_tgt = range_vals_tgt[2] * sb.scaling_tgt
+    sb.bias_inp = range_vals_inp[2] * sb.scale_inp
+    sb.bias_tgt = range_vals_tgt[2] * sb.scale_tgt
     sb.bias_out = sb.bias_tgt
 
     return sb
 
 
-def compute_scaling_selfsupervised(inp: NDArray) -> DataScalingBias:
+def compute_scaling_selfsupervised(inp: NDArray) -> DataScaleBias:
     """
     Compute input data scaling and bias for self-supervised learning.
 
@@ -133,16 +133,16 @@ def compute_scaling_selfsupervised(inp: NDArray) -> DataScalingBias:
 
     Returns
     -------
-    DataScalingBias
-        An instance of DataScalingBias containing the computed scaling and bias values.
+    DataScaleBias
+        An instance of DataScaleBias containing the computed scaling and bias values.
     """
     range_vals_inp = _get_normalization(inp, percentile=0.001)
 
-    sb = DataScalingBias()
-    sb.scaling_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
-    sb.scaling_out = sb.scaling_tgt = sb.scaling_inp
+    sb = DataScaleBias()
+    sb.scale_inp = 1 / (range_vals_inp[1] - range_vals_inp[0])
+    sb.scale_out = sb.scale_tgt = sb.scale_inp
 
-    sb.bias_inp = range_vals_inp[2] * sb.scaling_inp
+    sb.bias_inp = range_vals_inp[2] * sb.scale_inp
     sb.bias_out = sb.bias_tgt = sb.bias_inp
 
     return sb
@@ -151,7 +151,7 @@ def compute_scaling_selfsupervised(inp: NDArray) -> DataScalingBias:
 class Denoiser:
     """Denoising images."""
 
-    data_sb: DataScalingBias | None
+    data_sb: DataScaleBias | None
 
     model: pt.nn.Module
     device: str
@@ -162,7 +162,7 @@ class Denoiser:
     def __init__(
         self,
         model: int | str | NetworkParams | pt.nn.Module | Mapping,
-        data_scaling_bias: DataScalingBias | None = None,
+        data_scale_bias: DataScaleBias | None = None,
         reg_tv_val: float | None = 1e-5,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         save_epochs_dir: str | None = None,
@@ -174,8 +174,8 @@ class Denoiser:
         ----------
         model : str | NetworkParams | pt.nn.Module | Mapping | None
             Type of neural network to use or a specific network (or state) to use
-        data_scaling_bias : DataScalingBias | None, optional
-            Scaling and bias of the input data, by default None
+        data_scale_bias : DataScaleBias | None, optional
+            Scale and bias of the input data, by default None
         reg_tv_val : float | None, optional
             Deep-image prior regularization value, by default 1e-5
         device : str, optional
@@ -199,7 +199,7 @@ class Denoiser:
         if verbose:
             get_num_parameters(self.model, verbose=True)
 
-        self.data_sb = data_scaling_bias
+        self.data_sb = data_scale_bias
 
         self.reg_val = reg_tv_val
         self.device = device
@@ -244,8 +244,8 @@ class Denoiser:
             self.data_sb = compute_scaling_supervised(inp, tgt)
 
         # Rescale the datasets
-        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
-        tgt = tgt * self.data_sb.scaling_tgt - self.data_sb.bias_tgt
+        inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
+        tgt = tgt * self.data_sb.scale_tgt - self.data_sb.bias_tgt
 
         # Create datasets
         dset_trn = (inp[trn_inds], tgt[trn_inds])
@@ -272,7 +272,7 @@ class Denoiser:
         optim = create_optimizer(self.model, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
-            lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
+            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
@@ -350,7 +350,7 @@ class Denoiser:
         optim = create_optimizer(self.model, algo=algo)
 
         if lower_limit is not None and self.data_sb is not None:
-            lower_limit = lower_limit * self.data_sb.scaling_inp - self.data_sb.bias_inp
+            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         best_epoch = -1
         best_loss_tst = +np.inf
@@ -460,7 +460,7 @@ class Denoiser:
         """
         # Rescale input
         if self.data_sb is not None:
-            inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
+            inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
 
@@ -471,7 +471,7 @@ class Denoiser:
 
         # Rescale output
         if self.data_sb is not None:
-            output = (output + self.data_sb.bias_out) / self.data_sb.scaling_out
+            output = (output + self.data_sb.bias_out) / self.data_sb.scale_out
 
         return output
 
@@ -488,11 +488,43 @@ class N2N(Denoiser):
         algo: str = "adam",
         lower_limit: float | NDArray | None = None,
     ) -> None:
+        """
+        Train the denoiser using the Noise2Noise self-supervised approach.
+
+        Parameters
+        ----------
+        inp : NDArray
+            The input data to be used for training. This should be a NumPy array of shape (N, H, W), where N is the
+            number of samples, and H and W are the height and width of each sample, respectively.
+        epochs : int
+            The number of epochs to train the model.
+        num_tst_ratio : float, optional
+            The ratio of the input data to be used for testing. The remaining data will be used for training.
+            Default is 0.2.
+        strategy : str, optional
+            The strategy to be used for creating input-target pairs. The available strategies are:
+            - "1:X": Use the mean of the remaining samples as the target for each sample.
+            - "X:1": Use the mean of the remaining samples as the input for each sample.
+            Default is "1:X".
+        algo : str, optional
+            The optimization algorithm to be used for training. The available algorithms are:
+            - "adam": Adam optimizer.
+            Default is "adam".
+        lower_limit : float | NDArray | None, optional
+            The lower limit for the input data. If provided, the input data will be clipped to this limit.
+            Default is None.
+
+        Notes
+        -----
+        This method uses the Noise2Noise self-supervised approach to train the denoiser. The input data is used to
+        generate target data based on the specified strategy. The training process involves creating pairs of input
+        and target data and then training the model to minimize the difference between the predicted and target data.
+        """
         if self.data_sb is None:
             self.data_sb = compute_scaling_selfsupervised(inp)
 
         # Rescale the datasets
-        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
+        inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         mask_trn = np.ones_like(inp, dtype=bool)
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
@@ -560,7 +592,7 @@ class N2V(Denoiser):
             self.data_sb = compute_scaling_selfsupervised(inp)
 
         # Rescale the datasets
-        inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
+        inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         inp_trn = inp[trn_inds]
         inp_tst = inp[tst_inds]
@@ -714,8 +746,8 @@ class DIP(Denoiser):
             self.data_sb = compute_scaling_supervised(inp, tgt)
 
         # Rescale the datasets
-        tmp_inp = inp * self.data_sb.scaling_inp - self.data_sb.bias_inp
-        tmp_tgt = tgt * self.data_sb.scaling_tgt - self.data_sb.bias_tgt
+        tmp_inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
+        tmp_tgt = tgt * self.data_sb.scale_tgt - self.data_sb.bias_tgt
 
         mask_trn = np.ones_like(tgt, dtype=bool)
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
