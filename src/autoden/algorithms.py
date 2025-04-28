@@ -5,13 +5,14 @@ Implementation of various unsupervised and self-supervised denoising methods.
 import copy as cp
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from warnings import warn
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
 from numpy.typing import DTypeLike, NDArray
 from tqdm.auto import tqdm
-from autoden import losses
 from autoden.io import load_model_state, save_model_state
+from autoden.losses import LossRegularizer, LossTV
 from autoden.models.config import NetworkParams, create_network, create_optimizer
 from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
 
@@ -163,7 +164,7 @@ class Denoiser:
         self,
         model: int | str | NetworkParams | pt.nn.Module | Mapping,
         data_scale_bias: DataScaleBias | None = None,
-        reg_tv_val: float | None = 1e-5,
+        reg_val: float | LossRegularizer | None = 1e-5,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         save_epochs_dir: str | None = None,
         verbose: bool = True,
@@ -176,8 +177,8 @@ class Denoiser:
             Type of neural network to use or a specific network (or state) to use
         data_scale_bias : DataScaleBias | None, optional
             Scale and bias of the input data, by default None
-        reg_tv_val : float | None, optional
-            Deep-image prior regularization value, by default 1e-5
+        reg_val : float | None, optional
+            Regularization value, by default 1e-5
         device : str, optional
             Device to use, by default "cuda" if cuda is available, otherwise "cpu"
         save_epochs_dir : str | None, optional
@@ -201,10 +202,20 @@ class Denoiser:
 
         self.data_sb = data_scale_bias
 
-        self.reg_val = reg_tv_val
+        self.reg_val = reg_val
         self.device = device
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
+
+    def _get_regularization(self) -> LossRegularizer | None:
+        if isinstance(self.reg_val, float):
+            return LossTV(self.reg_val, reduction="mean")
+        elif isinstance(self.reg_val, LossRegularizer):
+            return self.reg_val
+        else:
+            if self.reg_val is not None:
+                warn(f"Invalid regularization {self.reg_val} (Type: {type(self.reg_val)}), disabling regularization.")
+            return None
 
     def train_supervised(
         self,
@@ -251,11 +262,11 @@ class Denoiser:
         dset_trn = (inp[trn_inds], tgt[trn_inds])
         dset_tst = (inp[tst_inds], tgt[tst_inds])
 
-        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        loss_trn, loss_tst = self._train_selfsimilar(dset_trn, dset_tst, epochs=epochs, algo=algo, regularizer=reg)
+        reg = self._get_regularization()
+        losses = self._train_selfsimilar(dset_trn, dset_tst, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
-            self._plot_loss_curves(loss_trn, loss_tst, f"Supervised {algo.upper()}")
+            self._plot_loss_curves(losses, f"Supervised {algo.upper()}")
 
     def _train_selfsimilar(
         self,
@@ -263,11 +274,16 @@ class Denoiser:
         dset_tst: tuple[NDArray, NDArray],
         epochs: int,
         algo: str = "adam",
-        regularizer: losses.LossRegularizer | None = None,
+        regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
-    ) -> tuple[NDArray, NDArray]:
+    ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
         losses_trn = []
         losses_tst = []
+        losses_tst_sbi = []
+
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = create_optimizer(self.model, algo=algo)
 
@@ -284,6 +300,7 @@ class Denoiser:
 
         inp_tst_t = _single_channel_imgs_to_tensor(dset_tst[0], device=self.device)
         tgt_tst_t = _single_channel_imgs_to_tensor(dset_tst[1], device=self.device)
+        tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
@@ -307,13 +324,14 @@ class Denoiser:
 
             # Test
             self.model.eval()
-            loss_tst_val = 0
             with pt.inference_mode():
                 out_tst = self.model(inp_tst_t)
                 loss_tst = loss_data_fn(out_tst, tgt_tst_t)
+                losses_tst.append(loss_tst.item())
 
-                loss_tst_val = loss_tst.item()
-                losses_tst.append(loss_tst_val)
+                out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
+                loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_t_sbi)
+                losses_tst_sbi.append(loss_tst_sbi.item())
 
             # Check improvement
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
@@ -332,7 +350,7 @@ class Denoiser:
         if self.save_epochs_dir:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
-        return np.array(losses_trn), np.array(losses_tst)
+        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
 
     def _train_pixelmask_small(
         self,
@@ -341,11 +359,16 @@ class Denoiser:
         mask_trn: NDArray,
         epochs: int,
         algo: str = "adam",
-        regularizer: losses.LossRegularizer | None = None,
+        regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
-    ) -> tuple[NDArray, NDArray]:
+    ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
         losses_trn = []
         losses_tst = []
+        losses_tst_sbi = []  # Scale and bias invariant loss
+
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = create_optimizer(self.model, algo=algo)
 
@@ -362,6 +385,7 @@ class Denoiser:
         inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
         tgt_trn = pt.tensor(tgt[mask_trn].astype(np.float32), device=self.device)
         tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)].astype(np.float32), device=self.device)
+        tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
 
         mask_trn_t = pt.tensor(mask_trn, device=self.device)
         mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
@@ -397,6 +421,10 @@ class Denoiser:
             loss_tst = loss_data_fn(out_tst, tgt_tst)
             losses_tst.append(loss_tst.item())
 
+            out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
+            loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi)
+            losses_tst_sbi.append(loss_tst_sbi.item())
+
             # Check improvement
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
                 best_loss_tst = losses_tst[-1]
@@ -414,10 +442,7 @@ class Denoiser:
         if self.save_epochs_dir is not None:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
-        losses_trn = np.array(losses_trn)
-        losses_tst = np.array(losses_tst)
-
-        return losses_trn, losses_tst
+        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
 
     def _save_state(self, epoch_num: int, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
@@ -432,14 +457,26 @@ class Denoiser:
         state_dict = load_model_state(self.save_epochs_dir, epoch_num=epoch_num)
         self.model.load_state_dict(state_dict["state_dict"])
 
-    def _plot_loss_curves(self, train_loss: NDArray, test_loss: NDArray, title: str | None = None) -> None:
-        test_argmin = int(np.argmin(test_loss))
+    def _plot_loss_curves(self, losses: dict[str, NDArray], title: str | None = None) -> None:
+        loss_trn = losses["loss_trn"]
+        loss_tst = losses["loss_tst"]
+        loss_tst_sbi = losses["loss_tst_sbi"]
+        argmin_tst = int(np.argmin(loss_tst))
+        argmin_tst_sbi = int(np.argmin(loss_tst_sbi))
         fig, axs = plt.subplots(1, 1, figsize=[7, 2.6])
         if title is not None:
             axs.set_title(title)
-        axs.semilogy(np.arange(train_loss.size), train_loss, label="training loss")
-        axs.semilogy(np.arange(test_loss.size) + 1, test_loss, label="test loss")
-        axs.stem(test_argmin + 1, test_loss[test_argmin], linefmt="C1--", markerfmt="C1o", label=f"Best epoch: {test_argmin}")
+        axs.semilogy(np.arange(loss_trn.size), loss_trn, label="Training loss")
+        axs.semilogy(np.arange(loss_tst.size) + 1, loss_tst, label="Test loss")
+        axs.semilogy(np.arange(loss_tst_sbi.size) + 1, loss_tst_sbi, label="Scale-bias invariant Test loss")
+        axs.stem(argmin_tst + 1, loss_tst[argmin_tst], linefmt="C1--", markerfmt="C1o", label=f"Best epoch Test: {argmin_tst}")
+        axs.stem(
+            argmin_tst_sbi + 1,
+            loss_tst_sbi[argmin_tst_sbi],
+            linefmt="C2--",
+            markerfmt="C2o",
+            label=f"Best epoch Test SBI: {argmin_tst_sbi}",
+        )
         axs.legend()
         axs.grid()
         fig.tight_layout()
@@ -543,14 +580,13 @@ class N2N(Denoiser):
         tmp_inp = tmp_inp.astype(np.float32)
         tmp_tgt = tmp_tgt.astype(np.float32)
 
-        # reg = losses.LossTV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_pixelmask_small(
+        reg = self._get_regularization()
+        losses = self._train_pixelmask_small(
             tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg, lower_limit=lower_limit
         )
 
         if self.verbose:
-            self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+            self._plot_loss_curves(losses, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
 
 
 class N2V(Denoiser):
@@ -597,8 +633,8 @@ class N2V(Denoiser):
         inp_trn = inp[trn_inds]
         inp_tst = inp[tst_inds]
 
-        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_n2v_pixelmask_small(
+        reg = self._get_regularization()
+        losses = self._train_n2v_pixelmask_small(
             inp_trn,
             inp_tst,
             epochs=epochs,
@@ -608,7 +644,7 @@ class N2V(Denoiser):
             regularizer=reg,
         )
 
-        self._plot_loss_curves(losses_trn, losses_tst, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+        self._plot_loss_curves(losses, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
 
     def _train_n2v_pixelmask_small(
         self,
@@ -618,10 +654,11 @@ class N2V(Denoiser):
         mask_shape: int | Sequence[int] | NDArray,
         ratio_blind_spot: float,
         algo: str = "adam",
-        regularizer: losses.LossRegularizer | None = None,
-    ) -> tuple[NDArray, NDArray]:
+        regularizer: LossRegularizer | None = None,
+    ) -> dict[str, NDArray]:
         losses_trn = []
         losses_tst = []
+        losses_tst_sbi = []  # Scale and bias invariant loss
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = create_optimizer(self.model, algo=algo)
 
@@ -676,9 +713,14 @@ class N2V(Denoiser):
                 out_tst = self.model(inp_tst_damaged)
                 out_to_check = out_tst[..., to_check[0], to_check[1]].flatten()
                 ref_to_check = inp_tst_t[..., to_check[0], to_check[1]].flatten()
-                loss_tst = loss_data_fn(out_to_check, ref_to_check)
 
+                loss_tst = loss_data_fn(out_to_check, ref_to_check)
                 losses_tst.append(loss_tst.item())
+
+                out_to_check_sbi = (out_to_check - out_to_check.mean()) / (out_to_check.std() + 1e-5)
+                ref_to_check_sbi = (ref_to_check - ref_to_check.mean()) / (ref_to_check.std() + 1e-5)
+                loss_tst_sbi = loss_data_fn(out_to_check_sbi, ref_to_check_sbi)
+                losses_tst_sbi.append(loss_tst_sbi.item())
 
             # Check improvement
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
@@ -697,10 +739,7 @@ class N2V(Denoiser):
         if self.save_epochs_dir:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
-        losses_trn = np.array(losses_trn)
-        losses_tst = np.array(losses_tst)
-
-        return losses_trn, losses_tst
+        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
 
 
 class DIP(Denoiser):
@@ -753,12 +792,10 @@ class DIP(Denoiser):
         rnd_inds = np.random.random_integers(low=0, high=mask_trn.size - 1, size=int(mask_trn.size * num_tst_ratio))
         mask_trn[np.unravel_index(rnd_inds, shape=mask_trn.shape)] = False
 
-        reg = losses.LossTGV(self.reg_val, reduction="mean") if self.reg_val is not None else None
-        losses_trn, losses_tst = self._train_pixelmask_small(
-            tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg
-        )
+        reg = self._get_regularization()
+        losses = self._train_pixelmask_small(tmp_inp, tmp_tgt, mask_trn, epochs=epochs, algo=algo, regularizer=reg)
 
         if self.verbose:
-            self._plot_loss_curves(losses_trn, losses_tst, f"Unsupervised {self.__class__.__name__} {algo.upper()}")
+            self._plot_loss_curves(losses, f"Unsupervised {self.__class__.__name__} {algo.upper()}")
 
         return inp

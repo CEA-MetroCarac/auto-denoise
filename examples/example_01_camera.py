@@ -47,16 +47,16 @@ print(f"Img shape: {img_orig.shape}")
 
 net_params = ad.NetworkParamsUNet(n_features=16)
 
-denoiser_sup = ad.Denoiser(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_sup = ad.Denoiser(model=net_params, reg_val=REG_TV_VAL)
 denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
 
-denoiser_n2n = ad.N2N(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
 denoiser_n2n.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
 
-denoiser_n2v = ad.N2V(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
 denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 
-denoiser_dip = ad.DIP(model=net_params, reg_tv_val=REG_TV_VAL)
+denoiser_dip = ad.DIP(model=net_params, reg_val=REG_TV_VAL)
 inp_dip = denoiser_dip.train_unsupervised(imgs_noisy, epochs=EPOCHS)
 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
