@@ -13,6 +13,7 @@ __email__ = "nicola.vigano@cea.fr"
 from .unet import UNet
 from .msd import MSDnet
 from .dncnn import DnCNN
+from .resnet import Resnet
 
 from . import config
 from . import param_utils

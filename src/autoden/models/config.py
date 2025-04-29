@@ -15,9 +15,10 @@ from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 import torch as pt
 
-from .msd import MSDnet
-from .dncnn import DnCNN
-from .unet import UNet
+from autoden.models.msd import MSDnet
+from autoden.models.dncnn import DnCNN
+from autoden.models.unet import UNet
+from autoden.models.resnet import Resnet
 
 
 class NetworkParams(ABC):
@@ -221,6 +222,50 @@ class NetworkParamsDnCNN(NetworkParams):
             The DnCNN model.
         """
         return DnCNN(
+            n_channels_in=self.n_channels_in,
+            n_channels_out=self.n_channels_out,
+            n_layers=self.n_layers,
+            n_features=self.n_features,
+            device=device,
+        )
+
+
+class NetworkParamsResnet(NetworkParams):
+    """Store Resnet parameters."""
+
+    n_layers: int
+
+    def __init__(self, n_channels_in: int = 1, n_channels_out: int = 1, n_layers: int = 10, n_features: int = 24) -> None:
+        """Initialize the Resnet network parameters definition.
+
+        Parameters
+        ----------
+        n_channels_in : int, optional
+            Number of input channels. Default is 1.
+        n_channels_out : int, optional
+            Number of output channels. Default is 1.
+        n_layers : int, optional
+            Number of layers. Default is 10.
+        n_features : int, optional
+            Number of features. Default is 24.
+        """
+        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
+        self.n_layers = n_layers
+
+    def get_model(self, device: str = "cuda" if is_cuda_available() else "cpu") -> Module:
+        """Get a Resnet model with the selected parameters.
+
+        Parameters
+        ----------
+        device : str, optional
+            The device that the the model should run on, by default "cuda" if cuda is available, otherwise "cpu".
+
+        Returns
+        -------
+        Module
+            The Resnet model.
+        """
+        return Resnet(
             n_channels_in=self.n_channels_in,
             n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
