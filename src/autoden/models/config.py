@@ -6,6 +6,7 @@ High level definition of CNN architectures.
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence, Mapping
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +20,17 @@ from autoden.models.msd import MSDnet
 from autoden.models.dncnn import DnCNN
 from autoden.models.unet import UNet
 from autoden.models.resnet import Resnet
+
+
+@runtime_checkable
+class SerializableModel(Protocol):
+    """
+    Protocol for serializable models.
+
+    Provides a dictionary containing the initialization parameters of the model.
+    """
+
+    init_params: Mapping
 
 
 class NetworkParams(ABC):
@@ -88,6 +100,8 @@ class NetworkParamsMSD(NetworkParams):
             Number of features, by default 1.
         dilations : Sequence[int] | NDArray[np.integer], optional
             Dilation values for the network, by default np.arange(1, 4).
+        use_dilations : bool, optional
+            Whether to use dilations in the network, by default True.
         """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
@@ -108,13 +122,13 @@ class NetworkParamsMSD(NetworkParams):
             The model.
         """
         return MSDnet(
-            self.n_channels_in,
-            self.n_channels_out,
+            n_channels_in=self.n_channels_in,
+            n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
             n_features=self.n_features,
             dilations=list(self.dilations),
             device=device,
-            use_dilations=not self.use_dilations,
+            use_dilations=self.use_dilations,
         )
 
 
@@ -191,7 +205,15 @@ class NetworkParamsDnCNN(NetworkParams):
 
     n_layers: int
 
-    def __init__(self, n_channels_in: int = 1, n_channels_out: int = 1, n_layers: int = 20, n_features: int = 64) -> None:
+    def __init__(
+        self,
+        n_channels_in: int = 1,
+        n_channels_out: int = 1,
+        n_layers: int = 20,
+        n_features: int = 64,
+        kernel_size: int = 3,
+        pad_mode: str = "replicate",
+    ) -> None:
         """Initialize the DnCNN network parameters definition.
 
         Parameters
@@ -204,9 +226,15 @@ class NetworkParamsDnCNN(NetworkParams):
             Number of layers. Default is 20.
         n_features : int, optional
             Number of features. Default is 64.
+        kernel_size : int, optional
+            Size of the convolutional kernel. Default is 3.
+        pad_mode : str, optional
+            Padding mode for the convolutional layers. Default is "replicate".
         """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
+        self.kernel_size = kernel_size
+        self.pad_mode = pad_mode
 
     def get_model(self, device: str = "cuda" if is_cuda_available() else "cpu") -> Module:
         """Get a DnCNN model with the selected parameters.
@@ -226,6 +254,8 @@ class NetworkParamsDnCNN(NetworkParams):
             n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
             n_features=self.n_features,
+            kernel_size=self.kernel_size,
+            pad_mode=self.pad_mode,
             device=device,
         )
 
@@ -235,7 +265,15 @@ class NetworkParamsResnet(NetworkParams):
 
     n_layers: int
 
-    def __init__(self, n_channels_in: int = 1, n_channels_out: int = 1, n_layers: int = 10, n_features: int = 24) -> None:
+    def __init__(
+        self,
+        n_channels_in: int = 1,
+        n_channels_out: int = 1,
+        n_layers: int = 10,
+        n_features: int = 24,
+        kernel_size: int = 3,
+        pad_mode: str = "replicate",
+    ) -> None:
         """Initialize the Resnet network parameters definition.
 
         Parameters
@@ -248,9 +286,15 @@ class NetworkParamsResnet(NetworkParams):
             Number of layers. Default is 10.
         n_features : int, optional
             Number of features. Default is 24.
+        kernel_size : int, optional
+            Size of the convolutional kernel. Default is 3.
+        pad_mode : str, optional
+            Padding mode for the convolutional layers. Default is "replicate".
         """
         super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
         self.n_layers = n_layers
+        self.kernel_size = kernel_size
+        self.pad_mode = pad_mode
 
     def get_model(self, device: str = "cuda" if is_cuda_available() else "cpu") -> Module:
         """Get a Resnet model with the selected parameters.
@@ -270,12 +314,15 @@ class NetworkParamsResnet(NetworkParams):
             n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
             n_features=self.n_features,
+            kernel_size=self.kernel_size,
+            pad_mode=self.pad_mode,
             device=device,
         )
 
 
 def create_network(
     model: str | NetworkParams | Mapping | Module,
+    init_params: Mapping | None = None,
     state_dict: Mapping | None = None,
     device: str = "cuda" if is_cuda_available() else "cpu",
 ) -> Module:
@@ -320,18 +367,30 @@ def create_network(
     Model UNet - num. parameters: 1234567
     """
     if isinstance(model, Mapping):
-        if ("model_class", "state_dict") not in model:
-            raise ValueError("Malformed model state dictionary. Expected two mandatory fields: 'model_class' and 'state_dict'")
+        if not all(key in model for key in ("model_class", "init_params", "state_dict")):
+            raise ValueError(
+                "Malformed model state dictionary. Expected mandatory fields: 'model_class', 'init_params', and 'state_dict'"
+            )
         state_dict = model["state_dict"]
+        init_params = model["init_params"]
         model = model["model_class"]
+
+    if init_params is None:
+        init_params = dict()
+    else:
+        init_params = dict(**init_params)
+
+    for par in ("device", "verbose"):
+        if par in init_params:
+            del init_params[par]
 
     if isinstance(model, str):
         if model.lower() in ("msd", MSDnet.__name__.lower()):
-            model = NetworkParamsMSD()
+            model = NetworkParamsMSD(**init_params)
         elif model.lower() == UNet.__name__.lower():
-            model = NetworkParamsUNet()
+            model = NetworkParamsUNet(**init_params)
         elif model.lower() == DnCNN.__name__.lower():
-            model = NetworkParamsDnCNN()
+            model = NetworkParamsDnCNN(**init_params)
         else:
             raise ValueError(f"Invalid model name: {model}")
 

@@ -9,7 +9,7 @@ from autoden import models
 from autoden import losses
 
 from autoden.algorithms import *
-from autoden.models.config import NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet
+from autoden.models.config import NetworkParamsDnCNN, NetworkParamsMSD, NetworkParamsUNet, NetworkParamsResnet
 
 from autoden.debug import get_version
 

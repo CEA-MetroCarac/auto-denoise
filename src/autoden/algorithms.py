@@ -11,9 +11,9 @@ import numpy as np
 import torch as pt
 from numpy.typing import DTypeLike, NDArray
 from tqdm.auto import tqdm
-from autoden.io import load_model_state, save_model_state
 from autoden.losses import LossRegularizer, LossTV
 from autoden.models.config import NetworkParams, create_network, create_optimizer
+from autoden.models.io import load_model_state, save_model_state
 from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
 
 

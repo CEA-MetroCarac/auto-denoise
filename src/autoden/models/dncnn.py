@@ -34,6 +34,9 @@ class DnCNN(nn.Sequential):
         pad_mode: str = "replicate",
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
     ):
+        init_params = locals()
+        del init_params["self"]
+        del init_params["__class__"]
         # From zhang-2017-beyon-gauss-denois:
         #
         #  Thus, for Gaussian denoising with a certain noise level, we
@@ -55,9 +58,7 @@ class DnCNN(nn.Sequential):
         ]
 
         super().__init__(*layers)
-        self.n_ch_in = n_channels_in
-        self.n_ch_out = n_channels_out
-        self.n_layers = n_layers
+        self.init_params = init_params
         self.device = device
 
         self.to(self.device)

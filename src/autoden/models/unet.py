@@ -192,9 +192,12 @@ class UNet(nn.Module):
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         verbose: bool = False,
     ):
+        init_params = locals()
+        del init_params["self"]
+        del init_params["__class__"]
+
         super().__init__()
-        self.n_ch_in = n_channels_in
-        self.n_ch_out = n_channels_out
+        self.init_params = init_params
         self.device = device
 
         if pad_mode.lower() not in PAD_MODES:

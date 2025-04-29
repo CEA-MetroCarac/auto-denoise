@@ -7,6 +7,42 @@ from pathlib import Path
 
 import torch as pt
 from torch.nn import Module
+from autoden.models.config import SerializableModel
+
+
+def save_model(dst_file: str | Path, model: Module, optim_state: Mapping | None = None, epoch_num: int = 0) -> None:
+    """
+    Save a model and optionally its optimizer state to a file.
+
+    Parameters
+    ----------
+    dst_file : str or Path
+        The destination file path where the model will be saved.
+    model : Module
+        The model to be saved. It must implement the `SerializableModel` protocol.
+    optim_state : Mapping, optional
+        The state of the optimizer to be saved. Default is None.
+    epoch_num : int, optional
+        The current epoch number. Default is 0.
+
+    Raises
+    ------
+    ValueError
+        If the model does not implement the `SerializableModel` protocol.
+    """
+    if not isinstance(model, SerializableModel):
+        raise ValueError("The model needs to implement the protocol SerializableModel, in order to be writable to disk")
+
+    pt.save(
+        {
+            "model_class": model.__class__.__name__,
+            "init_params": model.init_params,
+            "epoch": epoch_num,
+            "state_dict": model.state_dict(),
+            "optimizer": optim_state,
+        },
+        dst_file,
+    )
 
 
 def save_model_state(
@@ -43,10 +79,8 @@ def save_model_state(
     epochs_base_path = Path(save_epochs_dir) / "weights"
     epochs_base_path.mkdir(parents=True, exist_ok=True)
 
-    pt.save(
-        {"model": model.__class__.__name__, "epoch": epoch_num, "state_dict": model.state_dict(), "optimizer": optim_state},
-        epochs_base_path / ("weights.pt" if is_best else f"weights_epoch_{epoch_num}.pt"),
-    )
+    dst_file = epochs_base_path / ("weights.pt" if is_best else f"weights_epoch_{epoch_num}.pt")
+    save_model(dst_file=dst_file, model=model, optim_state=optim_state, epoch_num=epoch_num)
 
 
 def load_model_state(save_epochs_dir: str | Path, epoch_num: int | None = None) -> Mapping:
