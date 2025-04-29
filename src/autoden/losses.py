@@ -6,9 +6,26 @@ import torch as pt
 import torch.nn as nn
 
 
-def _differentiate(inp: pt.Tensor, dim: int) -> pt.Tensor:
+def _differentiate(inp: pt.Tensor, dim: int, position: str) -> pt.Tensor:
     diff = pt.diff(inp, 1, dim=dim)
-    return pt.concatenate((diff, inp.index_select(index=pt.tensor(inp.shape[dim] - 1, device=inp.device), dim=dim)), dim=dim)
+    # return pt.concatenate((diff, inp.index_select(index=pt.tensor(inp.shape[dim] - 1, device=inp.device), dim=dim)), dim=dim)
+    padding = [pt.zeros(2, dtype=pt.int)] * (inp.ndim - 2)
+    if position.lower() == "pre":
+        padding[dim] = pt.tensor((1, 0))
+    elif position.lower() == "post":
+        padding[dim] = pt.tensor((0, 1))
+    else:
+        raise ValueError(f"Only possible positions are 'pre' or 'post', but '{position}' was given")
+    padding = pt.concatenate(list(reversed(padding)))
+    return F.pad(diff, padding.tolist(), mode="constant")
+
+
+def _check_input_tensor(img: pt.Tensor, op_ndims: int) -> None:
+    if img.ndim < (2 + op_ndims):
+        raise RuntimeError(
+            f"Expected input `img` to be a {op_ndims + 2}D tensor (for a {op_ndims} image)"
+            f", but got {img.ndim}D (shape: {img.shape})"
+        )
 
 
 class LossRegularizer(nn.MSELoss):
@@ -32,23 +49,20 @@ class LossTV(LossRegularizer):
         self.isotropic = isotropic
         self.ndims = ndims
 
-    def _check_input_tensor(self, img: pt.Tensor) -> None:
-        if img.ndim != (2 + self.ndims):
-            raise RuntimeError(
-                f"Expected input `img` to be a {self.ndims + 2}D tensor (for a {self.ndims} image)"
-                f", but got {img.ndim}D (shape: {img.shape})"
-            )
-
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute total variation statistics on current batch."""
-        self._check_input_tensor(img)
+        _check_input_tensor(img, self.ndims)
         axes = list(range(-(self.ndims + 1), 0))
 
-        diffs = [_differentiate(img, dim=dim) for dim in range(-self.ndims, 0)]
+        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.ndims, 0)]
+        diffs = pt.stack(diffs, dim=0)
+
         if self.isotropic:
-            tv_val = pt.sqrt(pt.stack([pt.pow(d, 2) for d in diffs], dim=0).sum(dim=0))
+            # tv_val = pt.sqrt(pt.stack([pt.pow(d, 2) for d in diffs], dim=0).sum(dim=0))
+            tv_val = pt.sqrt(pt.pow(diffs, 2).sum(dim=0))
         else:
-            tv_val = pt.stack([d.abs() for d in diffs], dim=0).sum(dim=0)
+            # tv_val = pt.stack([d.abs() for d in diffs], dim=0).sum(dim=0)
+            tv_val = diffs.abs().sum(dim=0)
 
         return self.lambda_val * tv_val.sum(axes).mean()
 
@@ -58,11 +72,11 @@ class LossTGV(LossTV):
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute total variation statistics on current batch."""
-        self._check_input_tensor(img)
+        _check_input_tensor(img, self.ndims)
         axes = list(range(-(self.ndims + 1), 0))
 
-        diffs = [_differentiate(img, dim=dim) for dim in range(-self.ndims, 0)]
-        diffdiffs = [_differentiate(d, dim=dim) for dim in range(-self.ndims, 0) for d in diffs]
+        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.ndims, 0)]
+        diffdiffs = [_differentiate(d, dim=dim, position="pre") for dim in range(-self.ndims, 0) for d in diffs]
 
         if self.isotropic:
             tv_val = pt.sqrt(pt.stack([pt.pow(d, 2) for d in diffs], dim=0).sum(dim=0))
