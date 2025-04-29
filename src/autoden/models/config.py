@@ -311,7 +311,7 @@ def create_optimizer(
     learning_rate: float = 1e-3,
     weight_decay: float = 1e-2,
     optim_state: Mapping | None = None,
-) -> pt.optim.Optimizer:
+) -> Optimizer:
     """Instantiates the desired optimizer for the given model.
 
     Parameters
