@@ -16,6 +16,9 @@ validation:
 nav:
 - Home:
   - Overview: index.md
+  - Examples & Tutorials:
+    - Denoising images: tutorials/denoising.md
+    - Saving & loading models: tutorials/models_io.md
   - Changelog: changelog.md
   - License: license.md
 # defer to gen-files + literate-nav
