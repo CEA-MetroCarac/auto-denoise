@@ -391,6 +391,8 @@ def create_network(
             model = NetworkParamsUNet(**init_params)
         elif model.lower() == DnCNN.__name__.lower():
             model = NetworkParamsDnCNN(**init_params)
+        elif model.lower() == Resnet.__name__.lower():
+            model = NetworkParamsResnet(**init_params)
         else:
             raise ValueError(f"Invalid model name: {model}")
 
