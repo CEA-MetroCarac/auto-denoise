@@ -54,8 +54,8 @@ def test_up_block():
 def test_unet_initialization():
     """Test the UNet class initialization"""
     model = UNet(n_channels_in=3, n_channels_out=1, n_features=32, n_levels=3)
-    assert model.n_ch_in == 3
-    assert model.n_ch_out == 1
+    assert model.in_layer[0][0].in_channels == 3
+    assert model.out_layer[0].out_channels == 1
     assert len(model.encoder_layers) == 3
     assert len(model.decoder_layers) == 3
 
