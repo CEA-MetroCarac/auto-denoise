@@ -17,7 +17,6 @@ nav:
 - Home:
   - Overview: index.md
   - Changelog: changelog.md
-  - Credits: credits.md
   - License: license.md
 # defer to gen-files + literate-nav
 - API reference:
