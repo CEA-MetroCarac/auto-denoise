@@ -16,12 +16,12 @@ validation:
 nav:
 - Home:
   - Overview: index.md
-  - Examples & Tutorials:
-    - Denoising images: tutorials/denoising.md
-    - Noise2Inverse: tutorials/noise2inverse.md
-    - Saving & loading models: tutorials/models_io.md
   - Changelog: changelog.md
   - License: license.md
+- Examples & Tutorials:
+  - Denoising images: tutorials/denoising.md
+  - Noise2Inverse: tutorials/noise2inverse.md
+  - Saving & loading models: tutorials/models_io.md
 # defer to gen-files + literate-nav
 - API reference:
   - Auto-Denoise: reference/
