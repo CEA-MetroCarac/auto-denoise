@@ -42,15 +42,24 @@ print(f"Img orig -> [{img_orig.min()}, {img_orig.max()}], Img noisy -> [{imgs_no
 print(f"Img shape: {img_orig.shape}")
 ```
 
+!!! note "Training vs testing images"
+
+    Certain algorithms require to allocate a certain number of input images to the test set.
+    This set is used to verify the model's training convergence, and to select the most appropriate epoch.
+    The variable `tst_inds` serves this purpose, by containing the indexes of the images to use for testing.
+
+    The algorithms that do not use this variable, will randomly select a certain fixed number of pixels as leave-out set.
+
 ## Training the Denoisers
 
 We will train four different denoisers: Supervised Denoiser, Noise2Noise (N2N), Noise2Void (N2V), and Deep Image Prior (DIP).
-We first define the type of model that we will want to use. In this case it will be a U-net, with 16 features:
+We first define the type of model that we will want to use. In this case it will be a U-net [[1](#ref.1)], with 16 features:
 ```python
 net_params = ad.NetworkParamsUNet(n_features=16)
 ```
 
 The variable `net_params` only defines the type of architecture that we want. When passed to the denoising algorithms, they will use it to create and initialize a U-net model.
+Other pre-configured models are available: MS-D net [[2](#ref.2)], DnCNN [[3](#ref.3)], and a custom ResNet implementation [[4](#ref.4)].
 
 ### Supervised Denoiser
 
@@ -63,7 +72,7 @@ denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_
 
 ### Noise2Noise (N2N)
 
-Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object. It learns to map one noisy image to another noisy image of the same object.
+Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [[5](#ref.5)]. It learns to map one noisy image to another noisy image of the same object.
 
 ```python
 denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
@@ -72,7 +81,7 @@ denoiser_n2n.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
 
 ### Noise2Void (N2V)
 
-Noise2Void is a self-supervised denoising method that can work with a single noisy image. It learns to predict the missing pixels in the image.
+Noise2Void is a self-supervised denoising method that can work with a single noisy image [[6](#ref.6)]. This implementation can also work with structured noise [[7](#ref.7)]. It applies randomly generated masks to the images and learns to predict the masked pixels.
 
 ```python
 denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
@@ -81,7 +90,7 @@ denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 
 ### Deep Image Prior (DIP)
 
-Deep Image Prior is an unsupervised denoising method that can also work with a single image. It uses the prior knowledge embedded in the network architecture to denoise the image.
+Deep Image Prior is an unsupervised denoising method that can also work with a single image [[8](#ref.8)]. It uses the prior knowledge embedded in the network architecture to denoise the image.
 
 ```python
 denoiser_dip = ad.DIP(model=net_params, reg_val=REG_TV_VAL)
@@ -141,3 +150,14 @@ Finally, we will visualize the results of the different denoisers.
     fig.tight_layout()
     plt.show(block=False)
     ```
+
+## References
+
+1. <a id="ref.1"></a> O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional Networks for Biomedical Image Segmentation,” in Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015, 2015, pp. 234–241. doi: 10.1007/978-3-319-24574-4_28.
+2. <a id="ref.2"></a> D. M. Pelt and J. A. Sethian, “A mixed-scale dense convolutional neural network for image analysis,” Proceedings of the National Academy of Sciences, vol. 115, no. 2, pp. 254–259, 2018, doi: 10.1073/pnas.1715832114.
+3. <a id="ref.3"></a> K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang, “Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,” IEEE Transactions on Image Processing, vol. 26, no. 7, pp. 3142–3155, Jul. 2017, doi: 10.1109/TIP.2017.2662206.
+4. <a id="ref.4"></a> K. He, X. Zhang, S. Ren, and J. Sun, “Deep Residual Learning for Image Recognition,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2016, pp. 770–778. doi: 10.1109/CVPR.2016.90.
+5. <a id="ref.5"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. https://proceedings.mlr.press/v80/lehtinen18a.html.
+6. <a id="ref.6"></a> A. Krull, T.-O. Buchholz, and F. Jug, “Noise2Void - Learning Denoising From Single Noisy Images,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2019, pp. 2124–2132. doi: [10.1109/CVPR.2019.00223](https://doi.org/10.1109/CVPR.2019.00223).
+7. <a id="ref.7"></a> C. Broaddus, A. Krull, M. Weigert, U. Schmidt, and G. Myers, “Removing Structured Noise with Self-Supervised Blind-Spot Networks,” in 2020 IEEE 17th International Symposium on Biomedical Imaging (ISBI), IEEE, Apr. 2020, pp. 159–163. doi: [10.1109/ISBI45749.2020.9098336](https://doi.org/10.1109/ISBI45749.2020.9098336).
+8. <a id="ref.8"></a> V. Lempitsky, A. Vedaldi, and D. Ulyanov, “Deep Image Prior,” in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, IEEE, Jun. 2018, pp. 9446–9454. doi: [10.1109/CVPR.2018.00984](https://doi.org/10.1109/CVPR.2018.00984).
