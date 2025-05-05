@@ -14,42 +14,6 @@ cd auto-denoise
 make setup
 ```
 
-> NOTE:
-> If it fails for some reason,
-> you'll need to install
-> [uv](https://github.com/astral-sh/uv)
-> manually.
->
-> You can install it with:
->
-> ```bash
-> python3 -m pip install --user pipx
-> pipx install uv
-> ```
->
-> Now you can try running `make setup` again,
-> or simply `uv install`.
-
-You now have the dependencies installed.
-
-You can run the application with `make run autoden [ARGS...]`.
-
-Run `make help` to see all the available actions!
-
-## Tasks
-
-This project uses [duty](https://github.com/pawamoy/duty) to run tasks.
-A Makefile is also provided. The Makefile will try to run certain tasks
-on multiple Python versions. If for some reason you don't want to run the task
-on multiple Python versions, you run the task directly with `make run duty TASK`.
-
-The Makefile detects if a virtual environment is activated,
-so `make` will work the same with the virtualenv activated or not.
-
-If you work in VSCode, we provide
-[an action to configure VSCode](https://pawamoy.github.io/copier-uv/work/#vscode-setup)
-for the project.
-
 ## Development
 
 As usual:
@@ -59,11 +23,10 @@ As usual:
 
 **Before committing:**
 
-1. run `make format` to auto-format the code
-1. run `make check` to check everything (fix any warning)
-1. run `make test` to run the tests (fix any issue)
+1. format the code with `black -l 127 <your_file_path>.py`
+1. run the tests with `pytest tests/*` (fix any issue)
 1. if you updated the documentation or the project dependencies:
-    1. run `make docs`
+    1. run `mkdocs serve`
     1. go to http://localhost:8000 and check that everything looks good
 1. follow our [commit message convention](#commit-message-convention)
 
