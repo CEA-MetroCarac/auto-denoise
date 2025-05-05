@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "auto-denoise"
-version = "0.1.0"
+version = "1.0.0"
 description = "Unsupervised and self-supervised CNN denoising methods."
 authors = [{name = "Nicola VIGANO", email = "nicola.vigano@cea.fr"}]
 license = {text = "MIT"}
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Documentation",
     "Topic :: Software Development",
     "Topic :: Utilities",
