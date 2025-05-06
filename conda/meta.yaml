@@ -1,7 +1,8 @@
-
 {%- set pyproject = load_file_data('pyproject.toml') %}
 {%- set project = pyproject.get('project', {}) %}
 {%- set env_file = load_file_data('environment.yaml') %}
+{%- set py_min_version = project['requires-python'] %}
+{%- set py_build_version = py_min_version | replace('>', '') | replace('=', '') %}
 
 package:
     name: {{ project['name'] }}
@@ -12,17 +13,17 @@ source:
 
 build:
     # Remove comment from line here below, if your package is pure Python
-    # noarch: python
-    number: '0'
-    script: "{{ PYTHON }} -m pip install --no-deps --ignore-installed . -vv || exit 1"
+    noarch: python
+    number: 0
+    script: python -m pip install --no-deps --ignore-installed . -vv
 
 requirements:
-    build:
-        - python
-        - setuptools
+    host:
+        - python {{ py_build_version }}.*
+        - pip
 
     run:
-        - python
+        - python {{ py_min_version }}
         # Dependencies as defined in environment.yaml
         # Some names might be different from pypi, so please curate that list manually
         {% for dep in env_file['dependencies'] %}
@@ -31,7 +32,7 @@ requirements:
 
 about:
     home: {{ project['urls']['Homepage'] }}
-    license_file: LICENSE
+    license: {{ project['license'] }}
     summary: {{ project['description'] }}
     doc_url: {{ project['urls']['Documentation'] }}
 
