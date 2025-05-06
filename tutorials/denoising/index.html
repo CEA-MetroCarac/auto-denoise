@@ -737,6 +737,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1565,6 +1574,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1635,29 +1653,37 @@
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Img orig -&gt; [</span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">], Img noisy -&gt; [</span><span class="si">{</span><span class="n">imgs_noisy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">imgs_noisy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Img shape: </span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Training vs testing images</p>
+<p>Certain algorithms require to allocate a certain number of input images to the test set.
+This set is used to verify the model's training convergence, and to select the most appropriate epoch.
+The variable <code>tst_inds</code> serves this purpose, by containing the indexes of the images to use for testing.</p>
+<p>The algorithms that do not use this variable, will randomly select a certain fixed number of pixels as leave-out set.</p>
+</div>
 <h2 id="training-the-denoisers">Training the Denoisers<a class="headerlink" href="#training-the-denoisers" title="Permanent link">&para;</a></h2>
 <p>We will train four different denoisers: Supervised Denoiser, Noise2Noise (N2N), Noise2Void (N2V), and Deep Image Prior (DIP).
-We first define the type of model that we will want to use. In this case it will be a U-net, with 16 features:
+We first define the type of model that we will want to use. In this case it will be a U-net [<a href="#ref.1">1</a>], with 16 features:
 <div class="highlight"><pre><span></span><code><span class="n">net_params</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">NetworkParamsUNet</span><span class="p">(</span><span class="n">n_features</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
 </code></pre></div></p>
-<p>The variable <code>net_params</code> only defines the type of architecture that we want. When passed to the denoising algorithms, they will use it to create and initialize a U-net model.</p>
+<p>The variable <code>net_params</code> only defines the type of architecture that we want. When passed to the denoising algorithms, they will use it to create and initialize a U-net model.
+Other pre-configured models are available: MS-D net [<a href="#ref.2">2</a>], DnCNN [<a href="#ref.3">3</a>], and a custom ResNet implementation [<a href="#ref.4">4</a>].</p>
 <h3 id="supervised-denoiser">Supervised Denoiser<a class="headerlink" href="#supervised-denoiser" title="Permanent link">&para;</a></h3>
 <p>The supervised denoiser is trained using pairs of noisy and clean images. It learns to map noisy images to their clean counterparts.</p>
 <div class="highlight"><pre><span></span><code><span class="n">denoiser_sup</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">Denoiser</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
 <span class="n">denoiser_sup</span><span class="o">.</span><span class="n">train_supervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">img_orig</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">,</span> <span class="n">tst_inds</span><span class="o">=</span><span class="n">tst_inds</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="noise2noise-n2n">Noise2Noise (N2N)<a class="headerlink" href="#noise2noise-n2n" title="Permanent link">&para;</a></h3>
-<p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object. It learns to map one noisy image to another noisy image of the same object.</p>
+<p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [<a href="#ref.5">5</a>]. It learns to map one noisy image to another noisy image of the same object.</p>
 <div class="highlight"><pre><span></span><code><span class="n">denoiser_n2n</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2N</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
 <span class="n">denoiser_n2n</span><span class="o">.</span><span class="n">train_selfsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="noise2void-n2v">Noise2Void (N2V)<a class="headerlink" href="#noise2void-n2v" title="Permanent link">&para;</a></h3>
-<p>Noise2Void is a self-supervised denoising method that can work with a single noisy image. It learns to predict the missing pixels in the image.</p>
+<p>Noise2Void is a self-supervised denoising method that can work with a single noisy image [<a href="#ref.6">6</a>]. This implementation can also work with structured noise [<a href="#ref.7">7</a>]. It applies randomly generated masks to the images and learns to predict the masked pixels.</p>
 <div class="highlight"><pre><span></span><code><span class="n">denoiser_n2v</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2V</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
 <span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">train_selfsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">,</span> <span class="n">tst_inds</span><span class="o">=</span><span class="n">tst_inds</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="deep-image-prior-dip">Deep Image Prior (DIP)<a class="headerlink" href="#deep-image-prior-dip" title="Permanent link">&para;</a></h3>
-<p>Deep Image Prior is an unsupervised denoising method that can also work with a single image. It uses the prior knowledge embedded in the network architecture to denoise the image.</p>
+<p>Deep Image Prior is an unsupervised denoising method that can also work with a single image [<a href="#ref.8">8</a>]. It uses the prior knowledge embedded in the network architecture to denoise the image.</p>
 <div class="highlight"><pre><span></span><code><span class="n">denoiser_dip</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">DIP</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
 <span class="n">inp_dip</span> <span class="o">=</span> <span class="n">denoiser_dip</span><span class="o">.</span><span class="n">train_unsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">)</span>
 </code></pre></div>
@@ -1702,6 +1728,17 @@ We first define the type of model that we will want to use. In this case it will
 </div>
 </div>
 </div>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ol>
+<li><a id="ref.1"></a> O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional Networks for Biomedical Image Segmentation,” in Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015, 2015, pp. 234–241. doi: 10.1007/978-3-319-24574-4_28.</li>
+<li><a id="ref.2"></a> D. M. Pelt and J. A. Sethian, “A mixed-scale dense convolutional neural network for image analysis,” Proceedings of the National Academy of Sciences, vol. 115, no. 2, pp. 254–259, 2018, doi: 10.1073/pnas.1715832114.</li>
+<li><a id="ref.3"></a> K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang, “Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,” IEEE Transactions on Image Processing, vol. 26, no. 7, pp. 3142–3155, Jul. 2017, doi: 10.1109/TIP.2017.2662206.</li>
+<li><a id="ref.4"></a> K. He, X. Zhang, S. Ren, and J. Sun, “Deep Residual Learning for Image Recognition,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2016, pp. 770–778. doi: 10.1109/CVPR.2016.90.</li>
+<li><a id="ref.5"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. <a href="https://proceedings.mlr.press/v80/lehtinen18a.html">https://proceedings.mlr.press/v80/lehtinen18a.html</a>.</li>
+<li><a id="ref.6"></a> A. Krull, T.-O. Buchholz, and F. Jug, “Noise2Void - Learning Denoising From Single Noisy Images,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2019, pp. 2124–2132. doi: <a href="https://doi.org/10.1109/CVPR.2019.00223">10.1109/CVPR.2019.00223</a>.</li>
+<li><a id="ref.7"></a> C. Broaddus, A. Krull, M. Weigert, U. Schmidt, and G. Myers, “Removing Structured Noise with Self-Supervised Blind-Spot Networks,” in 2020 IEEE 17th International Symposium on Biomedical Imaging (ISBI), IEEE, Apr. 2020, pp. 159–163. doi: <a href="https://doi.org/10.1109/ISBI45749.2020.9098336">10.1109/ISBI45749.2020.9098336</a>.</li>
+<li><a id="ref.8"></a> V. Lempitsky, A. Vedaldi, and D. Ulyanov, “Deep Image Prior,” in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, IEEE, Jun. 2018, pp. 9446–9454. doi: <a href="https://doi.org/10.1109/CVPR.2018.00984">10.1109/CVPR.2018.00984</a>.</li>
+</ol>
 
 
 

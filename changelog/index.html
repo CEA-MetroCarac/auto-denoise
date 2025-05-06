@@ -473,6 +473,19 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -484,6 +497,34 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#v100-2025-05-06" class="md-nav__link">
+    <span class="md-ellipsis">
+      v1.0.0 - 2025-05-06
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1287,6 +1328,23 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#v100-2025-05-06" class="md-nav__link">
+    <span class="md-ellipsis">
+      v1.0.0 - 2025-05-06
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1322,6 +1380,15 @@
 <p>The format is based on <a href="http://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>
 and this project adheres to <a href="http://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
 <!-- insertion marker -->
+<h2 id="v100-2025-05-06"><a href="https://github.com/CEA-MetroCarac/auto-denoise/releases/tag/v1.0.0">v1.0.0</a> - 2025-05-06<a class="headerlink" href="#v100-2025-05-06" title="Permanent link">&para;</a></h2>
+<p>This is the first major release of Auto-denoise, providing initial implementations for a small selection of unsupervised and self-supervised CNN denoising methods. These methods currently include:</p>
+<pre><code>Noise2Noise (N2N) - A self-supervised denoising method using pairs of images of the same object.
+Noise2Void (N2V) - A self-supervised denoising method capable of working with a single image. We have also implemented a later development of the method that can work with structured noise.
+Deep Image Prior (DIP) - An unsupervised denoising/upsampling/deconvolution method that can also work with a single image.
+Supervised denoising methods, and the tomography-specific Noise2Inverse (N2I) method.
+</code></pre>
+<p>We also provide a small set of pre-configured models for these algorithms: U-net, MS-D net, DnCNN, and a custom ResNet implementation.</p>
+<p><small><a href="https://github.com/CEA-MetroCarac/auto-denoise/compare/v0.0.0...v1.0.0">Compare with first commit</a></small></p>
 
 
 
