@@ -1,0 +1,31 @@
+{
+    "@context": "https://w3id.org/codemeta/3.0",
+    "type": "SoftwareSourceCode",
+    "applicationCategory": "Image processing",
+    "author": [
+        {
+            "id": "https://orcid.org/0000-0003-1704-5574",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "UGA, CEA-IRIG, MEM"
+            },
+            "email": "nicola.vigano@cea.fr",
+            "familyName": "Vigano",
+            "givenName": "Nicola"
+        },
+        {
+            "type": "Role",
+            "schema:author": "https://orcid.org/0000-0003-1704-5574",
+            "roleName": "Main developer"
+        }
+    ],
+    "codeRepository": "https://github.com/CEA-MetroCarac/auto-denoise",
+    "datePublished": "2025-05-06",
+    "description": "Auto-denoise (autoden) provides implementations for a small selection of unsupervised and self-supervised CNN denoising methods.",
+    "keywords": "denoising; self-supervised; unsupervised; machine-learning",
+    "license": "https://spdx.org/licenses/MIT",
+    "name": "Auto-denoise",
+    "operatingSystem": "Any",
+    "programmingLanguage": "Python"
+}
