@@ -1,6 +1,9 @@
 import torch as pt
 import torch.nn as nn
 
+NDConv = {1: nn.Conv1d, 2: nn.Conv2d, 3: nn.Conv3d}
+NDBatchNorm = {1: nn.BatchNorm1d, 2: nn.BatchNorm2d, 3: nn.BatchNorm3d}
+
 
 class ResBlock(nn.Module):
     """Residual block: conv => BN => act. => conv => BN => residual link => (optional) act."""
@@ -10,6 +13,7 @@ class ResBlock(nn.Module):
         in_ch: int,
         out_ch: int,
         kernel_size: int,
+        ndim: int = 2,
         pad_mode: str = "replicate",
         last_block: bool = False,
         bias: bool = True,
@@ -18,17 +22,15 @@ class ResBlock(nn.Module):
         pad_size = (kernel_size - 1) // 2
         self.main_seq = nn.ModuleList(
             [
-                nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=bias),
-                nn.BatchNorm2d(out_ch),
+                NDConv[ndim](in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=bias),
+                NDBatchNorm[ndim](out_ch),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(out_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=bias),
-                nn.BatchNorm2d(out_ch),
+                NDConv[ndim](out_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=bias),
+                NDBatchNorm[ndim](out_ch),
             ]
         )
-        self.scale_inp = nn.Conv2d(in_ch, out_ch, kernel_size=1, bias=bias) if in_ch != out_ch else None
+        self.scale_inp = NDConv[ndim](in_ch, out_ch, kernel_size=1, bias=bias) if in_ch != out_ch else None
         self.post_res = nn.LeakyReLU(0.2, inplace=True) if not last_block else None
-        # self.in_ch = in_ch
-        # self.out_ch = out_ch
 
     def forward(self, inp: pt.Tensor) -> pt.Tensor:
         out = inp
@@ -54,6 +56,7 @@ class Resnet(nn.Sequential):
         kernel_size: int = 3,
         pad_mode: str = "replicate",
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
+        ndim: int = 2,
     ):
         init_params = locals()
         del init_params["self"]
@@ -64,6 +67,7 @@ class Resnet(nn.Sequential):
                 n_channels_in if i_l == 0 else n_features,
                 n_channels_out if i_l == (n_layers - 1) else n_features,
                 kernel_size=kernel_size,
+                ndim=ndim,
                 pad_mode=pad_mode,
                 last_block=(i_l == (n_layers - 1)),
             )
