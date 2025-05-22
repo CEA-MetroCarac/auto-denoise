@@ -10,23 +10,31 @@ import torch as pt
 import torch.nn as nn
 
 
-PAD_MODES = ("zeros", "replicate", "reflect")
+PAD_MODES = ("zeros", "replicate", "reflect", "circular")
+
+NDConv = {1: nn.Conv1d, 2: nn.Conv2d, 3: nn.Conv3d}
+NDConvT = {1: nn.ConvTranspose1d, 2: nn.ConvTranspose2d, 3: nn.ConvTranspose3d}
+NDPool = {1: nn.AvgPool1d, 2: nn.AvgPool2d, 3: nn.AvgPool3d}
+NDBatchNorm = {1: nn.BatchNorm1d, 2: nn.BatchNorm2d, 3: nn.BatchNorm3d}
+NDUpsampling = {1: "linear", 2: "bilinear", 3: "trilinear"}
+NDPadding = {
+    PAD_MODES[0]: {1: nn.ConstantPad1d, 2: nn.ConstantPad1d, 3: nn.ConstantPad3d},
+    PAD_MODES[1]: {1: nn.ReplicationPad1d, 2: nn.ReplicationPad1d, 3: nn.ReplicationPad3d},
+    PAD_MODES[2]: {1: nn.ReflectionPad1d, 2: nn.ReflectionPad1d, 3: nn.ReflectionPad3d},
+    PAD_MODES[3]: {1: nn.CircularPad1d, 2: nn.CircularPad1d, 3: nn.CircularPad3d},
+}
 
 
-def _get_alignment_padding(inp_hw: tuple[int, int], n_levels: int = 1, kernel_size: int = 1) -> tuple[int, int, int, int]:
-    inp_h, inp_w = inp_hw
+def _get_alignment_padding(shape: tuple[int, ...], n_levels: int = 1, kernel_size: int = 1) -> tuple[int, ...]:
     align_size = kernel_size * 2**n_levels
-    padded_h, padded_w = ((-inp_h % align_size), (-inp_w % align_size))
-    return (padded_w // 2, padded_w - padded_w // 2, padded_h // 2, padded_h - padded_h // 2)
+    return sum([((-s % align_size) // 2, (-s % align_size) - (-s % align_size) // 2) for s in reversed(shape)], ())
 
 
-def _get_padding_block(pad_size: int | tuple[int, int, int, int], pad_mode: str) -> nn.Module:
+def _get_padding_block(pad_size: int | tuple[int, ...], ndim: int, pad_mode: str) -> nn.Module:
     if pad_mode.lower() == "zeros":
-        return nn.ConstantPad2d(pad_size, value=0.0)
-    elif pad_mode.lower() == "replicate":
-        return nn.ReplicationPad2d(pad_size)
-    elif pad_mode.lower() == "reflect":
-        return nn.ReflectionPad2d(pad_size)
+        return NDPadding[pad_mode][ndim](pad_size, 0.0)
+    elif pad_mode.lower() in ("replicate", "reflect", "circular"):
+        return NDPadding[pad_mode][ndim](pad_size)
     else:
         raise ValueError(f"Padding mode {pad_mode} should be one of {PAD_MODES}")
 
@@ -39,6 +47,7 @@ class ConvBlock(nn.Sequential):
         in_ch: int,
         out_ch: int,
         kernel_size: int,
+        ndim: int = 2,
         stride: int = 1,
         dilation: int = 1,
         pad_mode: str = "replicate",
@@ -50,9 +59,9 @@ class ConvBlock(nn.Sequential):
         if last_block:
             post_conv = []
         else:
-            post_conv = [nn.BatchNorm2d(out_ch), nn.LeakyReLU(0.2, inplace=True)]
+            post_conv = [NDBatchNorm[ndim](out_ch), nn.LeakyReLU(0.2, inplace=True)]
         super().__init__(
-            nn.Conv2d(
+            NDConv[ndim](
                 in_ch,
                 out_ch,
                 kernel_size=kernel_size,
@@ -79,72 +88,77 @@ class ConvBlock(nn.Sequential):
 class DoubleConv(nn.Sequential):
     """Double convolution (conv => BN => ReLU) * 2."""
 
-    def __init__(self, in_ch: int, out_ch: int, pad_mode: str = "replicate"):
+    def __init__(self, in_ch: int, out_ch: int, ndim: int = 2, pad_mode: str = "replicate"):
         super().__init__(
-            ConvBlock(in_ch, out_ch, kernel_size=3, pad_mode=pad_mode),
-            ConvBlock(out_ch, out_ch, kernel_size=1),
+            ConvBlock(in_ch, out_ch, ndim=ndim, kernel_size=3, pad_mode=pad_mode),
+            ConvBlock(out_ch, out_ch, ndim=ndim, kernel_size=1),
         )
 
 
 class DownBlock(nn.Sequential):
     """Down-scaling block."""
 
-    def __init__(self, in_ch: int, out_ch: int, bilinear: bool = True, pad_mode: str = "replicate"):
+    def __init__(self, in_ch: int, out_ch: int, ndim: int = 2, bilinear: bool = True, pad_mode: str = "replicate"):
         if bilinear:
-            down_block = [nn.AvgPool2d(2)]
+            down_block = [NDPool[ndim](2)]
         else:
-            down_block = [ConvBlock(in_ch, in_ch, kernel_size=2, stride=2)]
+            down_block = [ConvBlock(in_ch, in_ch, ndim=ndim, kernel_size=2, stride=2)]
         super().__init__(
             *down_block,
-            DoubleConv(in_ch, out_ch, pad_mode=pad_mode),
+            DoubleConv(in_ch, out_ch, ndim=ndim, pad_mode=pad_mode),
         )
+        self.ndim = ndim
         self.pad_mode = pad_mode.lower()
 
     def forward(self, inp: pt.Tensor) -> pt.Tensor:
-        img_h, img_w = inp.shape[-2:]
-        pad_size = _get_alignment_padding((img_h, img_w))
-        pad_block = _get_padding_block(pad_size, self.pad_mode)
+        pad_size = _get_alignment_padding(inp.shape[-self.ndim :])
+        pad_block = _get_padding_block(pad_size, self.ndim, self.pad_mode)
         return super().forward(pad_block(inp))
 
 
 class UpBlock(nn.Module):
     """Up-scaling block."""
 
-    def __init__(self, in_ch: int, skip_ch: int | None, out_ch: int, bilinear: bool = False, pad_mode: str = "replicate"):
+    def __init__(
+        self, in_ch: int, skip_ch: int | None, out_ch: int, ndim: int = 2, linear: bool = True, pad_mode: str = "replicate"
+    ):
         super().__init__()
         self.skip_ch = skip_ch
+        self.ndim = ndim
 
         # Bilinear up-sampling tends to give better results, and use fewer weights
-        if bilinear:
-            self.up_block = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        if linear:
+            self.up_block = nn.Upsample(scale_factor=2, mode=NDUpsampling[ndim], align_corners=True)
         else:
-            self.up_block = nn.ConvTranspose2d(in_ch, in_ch, kernel_size=2, stride=2)
+            self.up_block = NDConvT[ndim](in_ch, in_ch, kernel_size=2, stride=2)
 
         if skip_ch is not None:
             n_skip = skip_ch
             if skip_ch > 0:
-                self.skip_block = ConvBlock(in_ch, skip_ch, kernel_size=1)
+                self.skip_block = ConvBlock(in_ch, skip_ch, ndim=ndim, kernel_size=1, pad_mode=pad_mode)
         else:
             n_skip = in_ch
-
-        self.conv_block = DoubleConv(in_ch + n_skip, out_ch, pad_mode=pad_mode)
+        self.conv_block = DoubleConv(in_ch + n_skip, out_ch, ndim=ndim, pad_mode=pad_mode)
 
     def forward(self, x_lo_res: pt.Tensor, x_hi_res: pt.Tensor) -> pt.Tensor:
         x_lo2hi_res: pt.Tensor = self.up_block(x_lo_res)
+        lo2hi_cropping = [slice(None)] * (x_lo2hi_res.ndim - self.ndim) + [slice(0, s) for s in x_hi_res.shape[-self.ndim :]]
 
         if self.skip_ch is None:
-            x_comb = pt.cat([x_hi_res, x_lo2hi_res[..., : x_hi_res.shape[-2], : x_hi_res.shape[-1]]], dim=1)
+            x_comb = pt.cat([x_hi_res, x_lo2hi_res[tuple(lo2hi_cropping)]], dim=1)
         elif self.skip_ch > 0:
             x_hi_res = self.skip_block(x_hi_res)
 
-            x_comb = pt.cat([x_hi_res, x_lo2hi_res[..., : x_hi_res.shape[-2], : x_hi_res.shape[-1]]], dim=1)
+            x_comb = pt.cat([x_hi_res, x_lo2hi_res[tuple(lo2hi_cropping)]], dim=1)
         else:
             x_comb = x_lo2hi_res
 
         return self.conv_block(x_comb)
 
 
-def _compute_architecture(n_levels: int, n_features: int, n_skip: int | None, verbose: bool = False) -> tuple:
+def _compute_architecture(
+    n_levels: int, n_features: int, n_skip: int | None, verbose: bool = False
+) -> tuple[list[tuple[int, int]], list[tuple[int, int | None, int]]]:
     encoder = [(2**lvl, 2 ** (lvl + (lvl < (n_levels - 1)))) for lvl in range(n_levels)]
     decoder = [(2 ** (lvl - 1), 2 ** (lvl - 1), 2 ** max(lvl - 2, 0)) for lvl in range(n_levels, 0, -1)]
     if verbose:
@@ -155,10 +169,10 @@ def _compute_architecture(n_levels: int, n_features: int, n_skip: int | None, ve
             else:
                 print(f"-{lvl=}   IN(1,     {encoder[lvl][0]} * {n_features}) --> ", end="")
             if n_skip is None:
-                print(f"SKIP({decoder[lvl-1][1]} * {n_features}) --> ", end="")
+                print(f"SKIP({decoder[-lvl-1][1]} * {n_features}) --> ", end="")
                 print(f"UP({decoder[-lvl-1][0]} * ({n_features} + {n_features}), {decoder[-lvl-1][2]})")
             elif n_skip > 0:
-                print(f"CONV({decoder[lvl-1][1]} * {n_skip}) --> ", end="")
+                print(f"CONV({decoder[-lvl-1][1]} * {n_skip}) --> ", end="")
                 print(f"UP({decoder[-lvl-1][0]} * ({n_features} + {n_skip}), {decoder[-lvl-1][2]})")
             else:
                 print(f"UP({decoder[-lvl-1][0]} * {n_features}, {decoder[-lvl-1][2]} * {n_features})")
@@ -184,6 +198,7 @@ class UNet(nn.Module):
         self,
         n_channels_in: int,
         n_channels_out: int,
+        ndim: int = 2,
         n_features: int = 32,
         n_levels: int = 3,
         n_channels_skip: int | None = None,
@@ -202,16 +217,17 @@ class UNet(nn.Module):
 
         if pad_mode.lower() not in PAD_MODES:
             raise ValueError(f"Padding mode {pad_mode} should be one of {PAD_MODES}")
-        self.pad_mode = pad_mode.lower()
 
         encoder, decoder = _compute_architecture(
             n_levels=n_levels, n_features=n_features, n_skip=n_channels_skip, verbose=verbose
         )
 
-        self.in_layer = DoubleConv(n_channels_in, n_features, pad_mode=pad_mode)
-        self.encoder_layers = nn.ModuleList([DownBlock(*lvl, bilinear=bilinear, pad_mode=pad_mode) for lvl in encoder])
-        self.decoder_layers = nn.ModuleList([UpBlock(*lvl, bilinear=bilinear, pad_mode=pad_mode) for lvl in decoder])
-        self.out_layer = ConvBlock(n_features, n_channels_out, kernel_size=1, last_block=True, pad_mode=pad_mode)
+        self.in_layer = DoubleConv(n_channels_in, n_features, ndim=ndim, pad_mode=pad_mode)
+        self.encoder_layers = nn.ModuleList(
+            [DownBlock(*lvl, ndim=ndim, bilinear=bilinear, pad_mode=pad_mode) for lvl in encoder]
+        )
+        self.decoder_layers = nn.ModuleList([UpBlock(*lvl, ndim=ndim, linear=bilinear, pad_mode=pad_mode) for lvl in decoder])
+        self.out_layer = ConvBlock(n_features, n_channels_out, ndim=ndim, kernel_size=1, pad_mode=pad_mode, last_block=True)
 
         if verbose:
             print(

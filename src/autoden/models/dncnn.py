@@ -1,18 +1,23 @@
 import torch as pt
 import torch.nn as nn
 
+NDConv = {1: nn.Conv1d, 2: nn.Conv2d, 3: nn.Conv3d}
+NDBatchNorm = {1: nn.BatchNorm1d, 2: nn.BatchNorm2d, 3: nn.BatchNorm3d}
+
 
 class ConvBlock(nn.Sequential):
     """Convolution block: conv => BN => act."""
 
-    def __init__(self, in_ch: int, out_ch: int, kernel_size: int, pad_mode: str = "replicate", last_block: bool = False):
+    def __init__(
+        self, in_ch: int, out_ch: int, kernel_size: int, ndim: int = 2, pad_mode: str = "replicate", last_block: bool = False
+    ):
         pad_size = (kernel_size - 1) // 2
         if last_block:
             post_conv = []
         else:
-            post_conv = [nn.BatchNorm2d(out_ch), nn.LeakyReLU(0.2, inplace=True)]
+            post_conv = [NDBatchNorm[ndim](out_ch), nn.LeakyReLU(0.2, inplace=True)]
         super().__init__(
-            nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=False),
+            NDConv[ndim](in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=False),
             *post_conv,
         )
 
@@ -33,6 +38,7 @@ class DnCNN(nn.Sequential):
         kernel_size: int = 3,
         pad_mode: str = "replicate",
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
+        ndim: int = 2,
     ):
         init_params = locals()
         del init_params["self"]
@@ -51,6 +57,7 @@ class DnCNN(nn.Sequential):
                 n_channels_in if i_l == 0 else n_features,
                 n_channels_out if i_l == (n_layers - 1) else n_features,
                 kernel_size=kernel_size,
+                ndim=ndim,
                 pad_mode=pad_mode,
                 last_block=(i_l == (n_layers - 1)),
             )
