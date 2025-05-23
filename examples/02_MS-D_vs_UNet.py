@@ -53,17 +53,18 @@ net_params_msd_dil = ad.NetworkParamsMSD(n_features=1, n_layers=16, use_dilation
 net_params_msd_samp = ad.NetworkParamsMSD(n_features=1, n_layers=16, use_dilations=False)
 
 denoiser_un = ad.N2N(model=net_params_unet, reg_val=REG_TV_VAL)
-denoiser_un.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
+n2n_data = denoiser_un.prepare_data(imgs_noisy)
+denoiser_un.train(*n2n_data, epochs=EPOCHS)
 
 denoiser_md = ad.N2N(model=net_params_msd_dil, reg_val=REG_TV_VAL)
-denoiser_md.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
+denoiser_md.train(*n2n_data, epochs=EPOCHS)
 
 denoiser_ms = ad.N2N(model=net_params_msd_samp, reg_val=REG_TV_VAL)
-denoiser_ms.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
+denoiser_ms.train(*n2n_data, epochs=EPOCHS)
 
-den_un = denoiser_un.infer(imgs_noisy).mean(0)
-den_md = denoiser_md.infer(imgs_noisy).mean(0)
-den_ms = denoiser_ms.infer(imgs_noisy).mean(0)
+den_un = denoiser_un.infer(n2n_data[0]).mean(0)
+den_md = denoiser_md.infer(n2n_data[0]).mean(0)
+den_ms = denoiser_ms.infer(n2n_data[0]).mean(0)
 
 fig, axs = plt.subplots(2, 3, sharex=True, sharey=True)
 axs[0, 0].imshow(img_orig)

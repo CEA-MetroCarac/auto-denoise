@@ -115,7 +115,8 @@ REG_TV_VAL = 3e-6
 print("Denoising reconstructions with N2N")
 net_params = ad.NetworkParamsUNet(n_features=24)
 denoiser_un = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
-denoiser_un.train_selfsupervised(recs_noisy_stack, epochs=EPOCHS)
+n2n_data = denoiser_un.prepare_data(recs_noisy_stack)
+denoiser_un.train(*n2n_data, epochs=EPOCHS)
 ```
 
 The training algorithm sets aside a small portion of the images' pixels to test the quality of the denoised image.
@@ -127,7 +128,7 @@ When the training is over, it will automatically select the model weights that e
 We use the trained N2I model to produce the denoised reconstruction.
 
 ```python
-rec_n2i = denoiser_un.infer(recs_noisy_stack).mean(0)
+rec_n2i = denoiser_un.infer(n2n_data[0]).mean(0)
 ```
 
 ## Visualizing the Results
