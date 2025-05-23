@@ -70,32 +70,36 @@ denoiser_sup = ad.Denoiser(model=net_params, reg_val=REG_TV_VAL)
 denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
 ```
 
-### Noise2Noise (N2N)
-
-Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [[5](#ref.5)]. It learns to map one noisy image to another noisy image of the same object.
-
-```python
-denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
-denoiser_n2n.train_selfsupervised(imgs_noisy, epochs=EPOCHS)
-```
-
 ### Noise2Void (N2V)
 
-Noise2Void is a self-supervised denoising method that can work with a single noisy image [[6](#ref.6)]. This implementation can also work with structured noise [[7](#ref.7)]. It applies randomly generated masks to the images and learns to predict the masked pixels.
+Noise2Void is a self-supervised denoising method that can work with a single noisy image [[5](#ref.5)]. This implementation can also work with structured noise [[6](#ref.6)]. It applies randomly generated masks to the images and learns to predict the masked pixels.
 
 ```python
 denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
 denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 ```
 
+### Noise2Noise (N2N)
+
+Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [[7](#ref.7)]. It learns to map one noisy image to another noisy image of the same object. The `prepare_data` function is used to organize the data in such a way that the algorithm can handle it correctly.
+
+```Python
+denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
+n2n_data = denoiser_n2n.prepare_data(imgs_noisy)
+denoiser_n2n.train(*n2n_data, epochs=EPOCHS)
+```
+
 ### Deep Image Prior (DIP)
 
-Deep Image Prior is an unsupervised denoising method that can also work with a single image [[8](#ref.8)]. It uses the prior knowledge embedded in the network architecture to denoise the image.
+Deep Image Prior is an unsupervised denoising method that can also work with a single image [[8](#ref.8)]. It uses the prior knowledge embedded in the network architecture to denoise the image. The `prepare_data` function is used to organize the data in such a way that the algorithm can handle it correctly.
 
-```python
-denoiser_dip = ad.DIP(model=net_params, reg_val=REG_TV_VAL)
-inp_dip = denoiser_dip.train_unsupervised(imgs_noisy, epochs=EPOCHS)
+```Python
+denoiser_dip = ad.DIP(model=net_params, reg_val=REG_TV_VAL * 1e1)
+dip_data = denoiser_dip.prepare_data(imgs_noisy)
+denoiser_dip.train(*dip_data, epochs=EPOCHS)
 ```
+!!! note "Regularization weight"
+    The DIP is more sensitive to the regularization weight, and it can be adjusted to obtain better results.
 
 ## Performing Inference
 
@@ -107,27 +111,31 @@ Inference is the process of using the trained models to denoise new images. The 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
 ```
 
-### Noise2Noise (N2N) Inference
-
-```python
-den_n2n = denoiser_n2n.infer(imgs_noisy).mean(0)
-```
-
 ### Noise2Void (N2V) Inference
 
 ```python
 den_n2v = denoiser_n2v.infer(imgs_noisy).mean(0)
 ```
 
+### Noise2Noise (N2N) Inference
+
+```python
+den_n2n = denoiser_n2n.infer(n2n_data[0]).mean(0)
+```
+!!! note "Inference input"
+    The output of the `prepare_data` function is also needed for the inference of N2N.
+
 ### Deep Image Prior (DIP) Inference
 
 ```python
-den_dip = denoiser_dip.infer(inp_dip)
+den_dip = denoiser_dip.infer(dip_data[0])
 ```
+!!! note "Inference input"
+    The output of the `prepare_data` function is also needed for the inference of DIP.
 
 ## Visualizing the Results
 
-Finally, we will visualize the results of the different denoisers.
+Finally, we visualize the results of the different denoisers.
 
 === "Image"
     ![results image](../images/denoise_imgs_results.png)
@@ -151,13 +159,52 @@ Finally, we will visualize the results of the different denoisers.
     plt.show(block=False)
     ```
 
+And here below we present the PSNR (Peak Signal-to-Noise Ration), SSIM (Structural Similarity Index) and FRC (Fourier Ring Correlation) of the results.
+
+=== "Image"
+    PSNR:
+    
+    - Supervised: 33.7
+    - Noise2Void: 26.1
+    - Noise2Noise: 32.6
+    - Deep Image Prior: 29.7
+    
+    SSIM:
+    
+    - Supervised: 0.901
+    - Noise2Void: 0.776
+    - Noise2Noise: 0.884
+    - Deep Image Prior: 0.825
+
+    ![results image frcs](../images/denoise_imgs_results_frcs.png)
+
+=== "Code"
+    ```python
+    from corrct.processing.post import plot_frcs
+    from skimage.metrics import peak_signal_noise_ratio as psnr
+    from skimage.metrics import structural_similarity as ssim
+
+    all_recs = [den_sup, den_n2v, den_n2n, den_dip]
+    all_labs = ["Supervised", "Noise2Void", "Noise2Noise", "Deep Image Prior"]
+
+    data_range = img_orig.max() - img_orig.min()
+    print("PSNR:")
+    for rec, lab in zip(all_recs, all_labs):
+        print(f"- {lab}: {psnr(img_orig, rec, data_range=data_range):.3}")
+    print("SSIM:")
+    for rec, lab in zip(all_recs, all_labs):
+        print(f"- {lab}: {ssim(img_orig, rec, data_range=data_range):.3}")
+
+    plot_frcs([(img_orig.astype(np.float32), rec) for rec in all_recs], all_labs)
+    ```
+
 ## References
 
 1. <a id="ref.1"></a> O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional Networks for Biomedical Image Segmentation,” in Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015, 2015, pp. 234–241. doi: 10.1007/978-3-319-24574-4_28.
 2. <a id="ref.2"></a> D. M. Pelt and J. A. Sethian, “A mixed-scale dense convolutional neural network for image analysis,” Proceedings of the National Academy of Sciences, vol. 115, no. 2, pp. 254–259, 2018, doi: 10.1073/pnas.1715832114.
 3. <a id="ref.3"></a> K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang, “Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,” IEEE Transactions on Image Processing, vol. 26, no. 7, pp. 3142–3155, Jul. 2017, doi: 10.1109/TIP.2017.2662206.
 4. <a id="ref.4"></a> K. He, X. Zhang, S. Ren, and J. Sun, “Deep Residual Learning for Image Recognition,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2016, pp. 770–778. doi: 10.1109/CVPR.2016.90.
-5. <a id="ref.5"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. https://proceedings.mlr.press/v80/lehtinen18a.html.
-6. <a id="ref.6"></a> A. Krull, T.-O. Buchholz, and F. Jug, “Noise2Void - Learning Denoising From Single Noisy Images,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2019, pp. 2124–2132. doi: [10.1109/CVPR.2019.00223](https://doi.org/10.1109/CVPR.2019.00223).
-7. <a id="ref.7"></a> C. Broaddus, A. Krull, M. Weigert, U. Schmidt, and G. Myers, “Removing Structured Noise with Self-Supervised Blind-Spot Networks,” in 2020 IEEE 17th International Symposium on Biomedical Imaging (ISBI), IEEE, Apr. 2020, pp. 159–163. doi: [10.1109/ISBI45749.2020.9098336](https://doi.org/10.1109/ISBI45749.2020.9098336).
+5. <a id="ref.5"></a> A. Krull, T.-O. Buchholz, and F. Jug, “Noise2Void - Learning Denoising From Single Noisy Images,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2019, pp. 2124–2132. doi: [10.1109/CVPR.2019.00223](https://doi.org/10.1109/CVPR.2019.00223).
+6. <a id="ref.6"></a> C. Broaddus, A. Krull, M. Weigert, U. Schmidt, and G. Myers, “Removing Structured Noise with Self-Supervised Blind-Spot Networks,” in 2020 IEEE 17th International Symposium on Biomedical Imaging (ISBI), IEEE, Apr. 2020, pp. 159–163. doi: [10.1109/ISBI45749.2020.9098336](https://doi.org/10.1109/ISBI45749.2020.9098336).
+7. <a id="ref.7"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. https://proceedings.mlr.press/v80/lehtinen18a.html.
 8. <a id="ref.8"></a> V. Lempitsky, A. Vedaldi, and D. Ulyanov, “Deep Image Prior,” in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, IEEE, Jun. 2018, pp. 9446–9454. doi: [10.1109/CVPR.2018.00984](https://doi.org/10.1109/CVPR.2018.00984).
