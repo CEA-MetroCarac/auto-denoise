@@ -25,7 +25,7 @@ def test_loss_tv_2d(setup):
     """Test for 2D Total Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, width, requires_grad=True)
-    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, ndims=2)
+    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, n_dims=2)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -35,7 +35,7 @@ def test_loss_tv_3d(setup):
     """Test for 3D Total Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, height, width, requires_grad=True)
-    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, ndims=3)
+    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, n_dims=3)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -45,7 +45,7 @@ def test_loss_tv_non_isotropic(setup):
     """Test for non-isotropic 2D Total Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, width, requires_grad=True)
-    loss_fn = LossTV(lambda_val=lambda_val, isotropic=False, ndims=2)
+    loss_fn = LossTV(lambda_val=lambda_val, isotropic=False, n_dims=2)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -55,7 +55,7 @@ def test_loss_tgv_2d(setup):
     """Test for 2D Total Generalized Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, width, requires_grad=True)
-    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=True, ndims=2)
+    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=True, n_dims=2)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -65,7 +65,7 @@ def test_loss_tgv_3d(setup):
     """Test for 3D Total Generalized Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, height, width, requires_grad=True)
-    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=True, ndims=3)
+    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=True, n_dims=3)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -75,7 +75,7 @@ def test_loss_tgv_non_isotropic(setup):
     """Test for non-isotropic 2D Total Generalized Variation loss."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, width, requires_grad=True)
-    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=False, ndims=2)
+    loss_fn = LossTGV(lambda_val=lambda_val, isotropic=False, n_dims=2)
     loss = loss_fn(img)
     assert loss.requires_grad
     assert loss.item() > 0
@@ -85,14 +85,14 @@ def test_invalid_input_tensor(setup):
     """Test for invalid input tensor."""
     batch_size, channels, height, width, lambda_val = setup
     img = pt.randn(batch_size, channels, height, requires_grad=True)  # 3D tensor instead of 4D
-    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, ndims=2)
+    loss_fn = LossTV(lambda_val=lambda_val, isotropic=True, n_dims=2)
     with pytest.raises(RuntimeError):
         loss_fn(img)
 
 
 def test_loss_tv_shape_mismatch():
     """Ensure LossTV raises the correct exception for shape mismatch."""
-    loss_fn = LossTV(lambda_val=0.1, ndims=2, isotropic=True)
+    loss_fn = LossTV(lambda_val=0.1, n_dims=2, isotropic=True)
     with pytest.raises(RuntimeError):
         tensor = pt.rand(3, 64, 64)  # Incorrect shape.
         loss_fn(tensor)
@@ -100,8 +100,8 @@ def test_loss_tv_shape_mismatch():
 
 def test_loss_tv_forward(random_tensor):
     """Test LossTV's forward method for isotropic and anisotropic settings."""
-    iso_loss_fn = LossTV(lambda_val=0.1, ndims=2, isotropic=True)
-    aniso_loss_fn = LossTV(lambda_val=0.1, ndims=2, isotropic=False)
+    iso_loss_fn = LossTV(lambda_val=0.1, n_dims=2, isotropic=True)
+    aniso_loss_fn = LossTV(lambda_val=0.1, n_dims=2, isotropic=False)
 
     # Check output for isotropic settings
     loss_iso = iso_loss_fn(random_tensor)
@@ -115,8 +115,8 @@ def test_loss_tv_forward(random_tensor):
 
 def test_loss_tgv_forward(random_tensor):
     """Test LossTGV's forward method for isotropic and anisotropic settings."""
-    iso_loss_tgv = LossTGV(lambda_val=0.1, ndims=2, isotropic=True)
-    aniso_loss_tgv = LossTGV(lambda_val=0.1, ndims=2, isotropic=False)
+    iso_loss_tgv = LossTGV(lambda_val=0.1, n_dims=2, isotropic=True)
+    aniso_loss_tgv = LossTGV(lambda_val=0.1, n_dims=2, isotropic=False)
 
     # Check output for isotropic settings
     loss_iso = iso_loss_tgv(random_tensor)
@@ -130,14 +130,14 @@ def test_loss_tgv_forward(random_tensor):
 
 def test_loss_tv_zero_input():
     """Test LossTV with zero input ensures the loss is zero."""
-    loss_fn = LossTV(lambda_val=0.1, ndims=2, isotropic=True)
+    loss_fn = LossTV(lambda_val=0.1, n_dims=2, isotropic=True)
     zero_tensor = pt.zeros(4, 3, 64, 64)
     assert loss_fn(zero_tensor).item() == pytest.approx(0.0), "Loss should be zero for zero input."
 
 
 def test_loss_tgv_zero_input():
     """Test LossTGV with zero input ensures the loss is zero."""
-    loss_fn = LossTGV(lambda_val=0.1, ndims=2, isotropic=True)
+    loss_fn = LossTGV(lambda_val=0.1, n_dims=2, isotropic=True)
     zero_tensor = pt.zeros(4, 3, 64, 64)
     assert loss_fn(zero_tensor).item() == pytest.approx(0.0), "Loss should be zero for zero input."
 
