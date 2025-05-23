@@ -16,14 +16,53 @@ import torch as pt
 from numpy.typing import DTypeLike, NDArray
 from tqdm.auto import tqdm
 from autoden.losses import LossRegularizer, LossTV
-from autoden.models.config import NetworkParams, create_network, create_optimizer
+from autoden.models.config import NetworkParams, create_network, create_optimizer, SerializableModel
 from autoden.models.io import load_model_state, save_model_state
 from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
 
 
-def _single_channel_imgs_to_tensor(imgs: NDArray, device: str, dtype: DTypeLike = np.float32) -> pt.Tensor:
-    imgs = np.array(imgs, ndmin=3).astype(dtype)[..., None, :, :]
-    return pt.tensor(imgs, device=device)
+def data_to_tensor(
+    data: NDArray, device: str, n_dims: int = 2, spectral_axis: int | None = None, dtype: DTypeLike | None = np.float32
+) -> pt.Tensor:
+    """
+    Convert a NumPy array to a PyTorch tensor.
+
+    Parameters
+    ----------
+    data : NDArray
+        The input data to be converted to a tensor.
+    device : str
+        The device to which the tensor should be moved (e.g., 'cpu', 'cuda').
+    n_dims : int, optional
+        The number of dimensions to consider for the data shape, by default 2.
+    spectral_axis : int or None, optional
+        The axis along which the spectral data is located, by default None.
+    dtype : DTypeLike or None, optional
+        The data type to which the data should be converted, by default np.float32.
+
+    Returns
+    -------
+    pt.Tensor
+        The converted PyTorch tensor.
+
+    Notes
+    -----
+    If `spectral_axis` is provided, the data is moved to the specified axis.
+    Otherwise, the data is expanded to include an additional dimension.
+    The data is then reshaped and converted to the specified data type before
+    being converted to a PyTorch tensor and moved to the specified device.
+    """
+    if spectral_axis is not None:
+        num_channels = data.shape[spectral_axis]
+        data = np.moveaxis(data, spectral_axis, -n_dims - 1)
+    else:
+        num_channels = 1
+        data = np.expand_dims(data, -n_dims - 1)
+    data_shape = data.shape[-n_dims:]
+    data = data.reshape([-1, num_channels, *data_shape])
+    if dtype is not None:
+        data = data.astype(dtype)
+    return pt.tensor(data, device=device)
 
 
 def get_normalization_range(vol: NDArray, percentile: float | None = None) -> tuple[float, float, float]:
@@ -223,11 +262,26 @@ class Denoiser(ABC):
 
     @property
     def n_dims(self) -> int:
-        return 2
+        """
+        Returns the expected signal dimensions.
+
+        If the model is an instance of `SerializableModel` and has an `init_params`
+        attribute containing the key `"n_dims"`, this property returns the value
+        associated with `"n_dims"`. Otherwise, it defaults to 2.
+
+        Returns
+        -------
+        int
+            The expected signal dimensions.
+        """
+        if isinstance(self.model, SerializableModel) and "n_dims" in self.model.init_params:
+            return self.model.init_params["n_dims"]
+        else:
+            return 2
 
     def _get_regularization(self) -> LossRegularizer | None:
         if isinstance(self.reg_val, float):
-            return LossTV(self.reg_val, reduction="mean")
+            return LossTV(self.reg_val, reduction="mean", n_dims=self.n_dims)
         elif isinstance(self.reg_val, LossRegularizer):
             return self.reg_val
         else:
@@ -262,11 +316,11 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_t = _single_channel_imgs_to_tensor(dset_trn[0], device=self.device)
-        tgt_trn_t = _single_channel_imgs_to_tensor(dset_trn[1], device=self.device)
+        inp_trn_t = data_to_tensor(dset_trn[0], device=self.device, n_dims=self.n_dims)
+        tgt_trn_t = data_to_tensor(dset_trn[1], device=self.device, n_dims=self.n_dims)
 
-        inp_tst_t = _single_channel_imgs_to_tensor(dset_tst[0], device=self.device)
-        tgt_tst_t = _single_channel_imgs_to_tensor(dset_tst[1], device=self.device)
+        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims)
+        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
@@ -347,30 +401,25 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        n_dims = inp.ndim
+        mask_tst = np.logical_not(mask_trn)
 
-        inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
-        tgt_trn = pt.tensor(tgt[mask_trn].astype(np.float32), device=self.device)
-        tgt_tst = pt.tensor(tgt[np.logical_not(mask_trn)].astype(np.float32), device=self.device)
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
+        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+
+        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+
+        tgt_trn = tgt_t[mask_trn_t]
+        tgt_tst = tgt_t[mask_tst_t]
         tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
-
-        mask_trn_t = pt.tensor(mask_trn, device=self.device)
-        mask_tst_t = pt.tensor(np.logical_not(mask_trn), device=self.device)
 
         self.model.train()
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
             # Train
             optim.zero_grad()
             out_t: pt.Tensor = self.model(inp_t)
-            if n_dims == 2:
-                out_t_mask = out_t[0, 0]
-            else:
-                out_t_mask = out_t[:, 0]
-            if tgt.ndim == 3 and out_t_mask.ndim == 2:
-                out_t_mask = pt.tile(out_t_mask[None, :, :], [tgt.shape[-3], 1, 1])
 
-            out_trn = out_t_mask[mask_trn_t].flatten()
-
+            out_trn = out_t[mask_trn_t].flatten()
             loss_trn = loss_data_fn(out_trn, tgt_trn)
             if regularizer is not None:
                 loss_trn += regularizer(out_t)
@@ -384,7 +433,7 @@ class Denoiser(ABC):
             optim.step()
 
             # Test
-            out_tst = out_t_mask[mask_tst_t]
+            out_tst = out_t[mask_tst_t]
             loss_tst = loss_data_fn(out_tst, tgt_tst)
             losses_tst.append(loss_tst.item())
 
@@ -470,12 +519,12 @@ class Denoiser(ABC):
         if self.data_sb is not None:
             inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
-        inp_t = _single_channel_imgs_to_tensor(inp, device=self.device)
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
 
         self.model.eval()
         with pt.inference_mode():
             out_t: pt.Tensor = self.model(inp_t)
-            output = out_t.to("cpu").numpy().reshape(inp.shape)
+            output = out_t.squeeze().to("cpu").numpy()
 
         # Rescale output
         if self.data_sb is not None:
