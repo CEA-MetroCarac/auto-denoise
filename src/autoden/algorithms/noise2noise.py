@@ -12,7 +12,7 @@ from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised
 class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
-    def prepare_input(
+    def prepare_data(
         self, inp: NDArray, num_tst_ratio: float = 0.2, strategy: str = "1:X"
     ) -> tuple[NDArray, NDArray, NDArray]:
         """

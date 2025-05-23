@@ -53,7 +53,7 @@ net_params_msd_dil = ad.NetworkParamsMSD(n_features=1, n_layers=16, use_dilation
 net_params_msd_samp = ad.NetworkParamsMSD(n_features=1, n_layers=16, use_dilations=False)
 
 denoiser_un = ad.N2N(model=net_params_unet, reg_val=REG_TV_VAL)
-n2n_data = denoiser_un.prepare_input(imgs_noisy)
+n2n_data = denoiser_un.prepare_data(imgs_noisy)
 denoiser_un.train(*n2n_data, epochs=EPOCHS)
 
 denoiser_md = ad.N2N(model=net_params_msd_dil, reg_val=REG_TV_VAL)

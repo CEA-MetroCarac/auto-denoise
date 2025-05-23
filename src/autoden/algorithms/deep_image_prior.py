@@ -12,7 +12,7 @@ from autoden.algorithms.denoiser import Denoiser, compute_scaling_supervised, ge
 class DIP(Denoiser):
     """Deep image prior."""
 
-    def prepare_input(self, tgt: NDArray, num_tst_ratio: float = 0.2) -> tuple[NDArray, NDArray, NDArray]:
+    def prepare_data(self, tgt: NDArray, num_tst_ratio: float = 0.2) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data.
 

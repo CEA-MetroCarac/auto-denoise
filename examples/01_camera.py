@@ -54,11 +54,11 @@ denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
 denoiser_n2v.train(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 
 denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL)
-n2n_data = denoiser_n2n.prepare_input(imgs_noisy)
+n2n_data = denoiser_n2n.prepare_data(imgs_noisy)
 denoiser_n2n.train(*n2n_data, epochs=EPOCHS)
 
 denoiser_dip = ad.DIP(model=net_params, reg_val=REG_TV_VAL)
-dip_data = denoiser_dip.prepare_input(imgs_noisy)
+dip_data = denoiser_dip.prepare_data(imgs_noisy)
 denoiser_dip.train(*dip_data, epochs=EPOCHS)
 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
