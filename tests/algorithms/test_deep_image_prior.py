@@ -18,7 +18,7 @@ def test_dip_prepare_data(dip_algo):
     """Test the prepare_data method of the DIP class."""
     tgt = np.random.rand(10, 10, 10)
     inp, tgt, mask_trn = dip_algo.prepare_data(tgt)
-    assert inp.shape == tgt.shape[-dip_algo.ndims :]
+    assert inp.shape == tgt.shape[-dip_algo.n_dims :]
     assert mask_trn.shape == tgt.shape
 
 

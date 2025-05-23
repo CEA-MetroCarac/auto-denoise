@@ -222,7 +222,7 @@ class Denoiser(ABC):
         self.verbose = verbose
 
     @property
-    def ndims(self) -> int:
+    def n_dims(self) -> int:
         return 2
 
     def _get_regularization(self) -> LossRegularizer | None:

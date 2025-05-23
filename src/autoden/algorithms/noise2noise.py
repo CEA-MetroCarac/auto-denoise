@@ -45,8 +45,8 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        if inp.ndim < self.ndims:
-            raise ValueError(f"Target data should at least be of {self.ndims} dimensions, but its shape is {inp.shape}")
+        if inp.ndim < self.n_dims:
+            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {inp.shape}")
 
         mask_trn = get_random_pixel_mask(inp.shape, mask_pixel_ratio=num_tst_ratio)
 
