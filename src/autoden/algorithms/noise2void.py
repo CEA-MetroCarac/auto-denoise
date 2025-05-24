@@ -165,13 +165,14 @@ class N2V(Denoiser):
             to_damage = np.where(mask > 0)
             to_check = np.where(mask > 1)
             inp_trn_damaged = pt.clone(inp_trn_t)
-            size_to_damage = inp_trn_damaged[..., *to_damage].shape
-            inp_trn_damaged[..., *to_damage] = pt.randn(size_to_damage, device=inp_trn_t.device, dtype=inp_trn_t.dtype)
+            # Once Python 3.10 is ditched, the parentheses can be ditched, and inp_trn_damaged[..., *to_damage] will be valid
+            size_to_damage = inp_trn_damaged[(..., *to_damage)].shape
+            inp_trn_damaged[(..., *to_damage)] = pt.randn(size_to_damage, device=inp_trn_t.device, dtype=inp_trn_t.dtype)
 
             optim.zero_grad()
             out_trn = self.model(inp_trn_damaged)
-            out_to_check = out_trn[..., *to_check].flatten()
-            ref_to_check = inp_trn_t[..., *to_check].flatten()
+            out_to_check = out_trn[(..., *to_check)].flatten()
+            ref_to_check = inp_trn_t[(..., *to_check)].flatten()
 
             loss_trn = loss_data_fn(out_to_check, ref_to_check)
             if regularizer is not None:
