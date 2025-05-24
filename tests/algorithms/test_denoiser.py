@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from autoden.algorithms.denoiser import Denoiser, DataScaleBias, compute_scaling_supervised, compute_scaling_selfsupervised
-from mock_model import MockModel
+from mock_model import MockModel, MockSerializableModel3D
 
 
 class MockDenoiser(Denoiser):
@@ -15,7 +15,7 @@ class MockDenoiser(Denoiser):
 
 
 @pytest.fixture
-def mock_denoiser():
+def mock_denoiser() -> Denoiser:
     """Fixture to create a MockDenoiser instance."""
     model = MockModel()
     denoiser = MockDenoiser(model=model, data_scale_bias=None, reg_val=1e-5, device="cpu", save_epochs_dir=None, verbose=False)
@@ -43,7 +43,7 @@ def test_compute_scaling_selfsupervised():
     assert sb.scale_tgt > 0
 
 
-def test_denoiser_initialization(mock_denoiser):
+def test_denoiser_initialization(mock_denoiser: Denoiser):
     """Test the initialization of the MockDenoiser class."""
     assert isinstance(mock_denoiser, Denoiser)
     assert mock_denoiser.device == "cpu"
@@ -51,8 +51,17 @@ def test_denoiser_initialization(mock_denoiser):
     assert mock_denoiser.verbose == False
 
 
-def test_denoiser_infer(mock_denoiser):
+def test_denoiser_infer(mock_denoiser: Denoiser):
     """Test the infer method of the MockDenoiser class."""
+
+    # Here, the first dimension is treated as batch
+    inp = np.random.rand(1, 10, 10)
+    assert mock_denoiser.n_dims == 2
+    output = mock_denoiser.infer(inp)
+    assert output.shape == inp.shape[-2:]
+
+    # Here, the first dimension is treated as depth
+    mock_denoiser.model = MockSerializableModel3D()
     inp = np.random.rand(1, 10, 10)
     output = mock_denoiser.infer(inp)
     assert output.shape == inp.shape

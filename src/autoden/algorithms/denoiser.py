@@ -524,7 +524,7 @@ class Denoiser(ABC):
         self.model.eval()
         with pt.inference_mode():
             out_t: pt.Tensor = self.model(inp_t)
-            output = out_t.squeeze().to("cpu").numpy()
+            output = out_t.squeeze(dim=(0, 1)).to("cpu").numpy()
 
         # Rescale output
         if self.data_sb is not None:
