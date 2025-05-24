@@ -43,19 +43,19 @@ class LossTV(LossRegularizer):
         reduce=None,
         reduction: str = "mean",
         isotropic: bool = True,
-        ndims: int = 2,
+        n_dims: int = 2,
     ) -> None:
         super().__init__(size_average, reduce, reduction)
         self.lambda_val = lambda_val
         self.isotropic = isotropic
-        self.ndims = ndims
+        self.n_dims = n_dims
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute total variation statistics on current batch."""
-        _check_input_tensor(img, self.ndims)
-        axes = list(range(-(self.ndims + 1), 0))
+        _check_input_tensor(img, self.n_dims)
+        axes = list(range(-(self.n_dims + 1), 0))
 
-        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.ndims, 0)]
+        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.n_dims, 0)]
         diffs = pt.stack(diffs, dim=0)
 
         if self.isotropic:
@@ -73,11 +73,11 @@ class LossTGV(LossTV):
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute total variation statistics on current batch."""
-        _check_input_tensor(img, self.ndims)
-        axes = list(range(-(self.ndims + 1), 0))
+        _check_input_tensor(img, self.n_dims)
+        axes = list(range(-(self.n_dims + 1), 0))
 
-        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.ndims, 0)]
-        diffdiffs = [_differentiate(d, dim=dim, position="pre") for dim in range(-self.ndims, 0) for d in diffs]
+        diffs = [_differentiate(img, dim=dim, position="post") for dim in range(-self.n_dims, 0)]
+        diffdiffs = [_differentiate(d, dim=dim, position="pre") for dim in range(-self.n_dims, 0) for d in diffs]
 
         if self.isotropic:
             tv_val = pt.sqrt(pt.stack([pt.pow(d, 2) for d in diffs], dim=0).sum(dim=0))
@@ -204,7 +204,7 @@ class LossSWTN(LossRegularizer):
         reduction: str = "mean",
         isotropic: bool = True,
         levels: int = 2,
-        ndims: int = 2,
+        n_dims: int = 2,
         min_approx: bool = False,
     ) -> None:
         super().__init__(size_average, reduce, reduction)
@@ -213,13 +213,13 @@ class LossSWTN(LossRegularizer):
         self.lambda_val = lambda_val
         self.isotropic = isotropic
         self.levels = levels
-        self.ndims = ndims
+        self.n_dims = n_dims
         self.min_approx = min_approx
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute wavelet decomposition on current batch."""
-        _check_input_tensor(img, self.ndims)
-        axes = list(range(-(self.ndims + 1), 0))
+        _check_input_tensor(img, self.n_dims)
+        axes = list(range(-(self.n_dims + 1), 0))
 
         coeffs = swt_nd(img, wl_dec_lo=self.wl_dec_lo, wl_dec_hi=self.wl_dec_hi, level=self.levels, normalize="scale")
 

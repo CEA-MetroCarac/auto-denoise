@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 from autoden.losses import LossRegularizer
 from autoden.models.config import create_optimizer
 from autoden.models.param_utils import fix_invalid_gradient_values
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, _single_channel_imgs_to_tensor
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, data_to_tensor
 
 
 def _random_probe_mask(
@@ -154,26 +154,25 @@ class N2V(Denoiser):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_t = _single_channel_imgs_to_tensor(inp_trn, device=self.device)
-        inp_tst_t = _single_channel_imgs_to_tensor(inp_tst, device=self.device)
+        inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims)
+        inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
             self.model.train()
 
-            mask = _random_probe_mask(inp_trn_t.shape[-2:], mask_shape, ratio_blind_spots=ratio_blind_spot)
+            mask = _random_probe_mask(inp_trn_t.shape[-self.n_dims :], mask_shape, ratio_blind_spots=ratio_blind_spot)
             to_damage = np.where(mask > 0)
             to_check = np.where(mask > 1)
             inp_trn_damaged = pt.clone(inp_trn_t)
-            size_to_damage = inp_trn_damaged[..., to_damage[0], to_damage[1]].shape
-            inp_trn_damaged[..., to_damage[0], to_damage[1]] = pt.randn(
-                size_to_damage, device=inp_trn_t.device, dtype=inp_trn_t.dtype
-            )
+            # Once Python 3.10 is ditched, the parentheses can be ditched, and inp_trn_damaged[..., *to_damage] will be valid
+            size_to_damage = inp_trn_damaged[(..., *to_damage)].shape
+            inp_trn_damaged[(..., *to_damage)] = pt.randn(size_to_damage, device=inp_trn_t.device, dtype=inp_trn_t.dtype)
 
             optim.zero_grad()
             out_trn = self.model(inp_trn_damaged)
-            out_to_check = out_trn[..., to_check[0], to_check[1]].flatten()
-            ref_to_check = inp_trn_t[..., to_check[0], to_check[1]].flatten()
+            out_to_check = out_trn[(..., *to_check)].flatten()
+            ref_to_check = inp_trn_t[(..., *to_check)].flatten()
 
             loss_trn = loss_data_fn(out_to_check, ref_to_check)
             if regularizer is not None:

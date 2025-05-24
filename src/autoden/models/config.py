@@ -39,11 +39,13 @@ class NetworkParams(ABC):
     n_channels_in: int
     n_channels_out: int
     n_features: int
+    n_dims: int
 
-    def __init__(self, n_features: int, n_channels_in: int = 1, n_channels_out: int = 1) -> None:
+    def __init__(self, n_features: int, n_channels_in: int = 1, n_channels_out: int = 1, n_dims: int = 2) -> None:
         self.n_channels_in = n_channels_in
         self.n_channels_out = n_channels_out
         self.n_features = n_features
+        self.n_dims = n_dims
 
     def __repr__(self) -> str:
         """Produce the string representation of the object.
@@ -83,6 +85,7 @@ class NetworkParamsMSD(NetworkParams):
         n_channels_out: int = 1,
         n_layers: int = 12,
         n_features: int = 1,
+        n_dims: int = 2,
         dilations: Sequence[int] | NDArray[np.integer] = np.arange(1, 4),
         use_dilations: bool = True,
     ) -> None:
@@ -98,12 +101,14 @@ class NetworkParamsMSD(NetworkParams):
             Number of layers in the network, by default 12.
         n_features : int, optional
             Number of features, by default 1.
+        n_dims : int, optional
+            Number of dimensions of the signals/convolutions, by default 2.
         dilations : Sequence[int] | NDArray[np.integer], optional
             Dilation values for the network, by default np.arange(1, 4).
         use_dilations : bool, optional
             Whether to use dilations in the network, by default True.
         """
-        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
+        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out, n_dims=n_dims)
         self.n_layers = n_layers
         self.dilations = dilations
         self.use_dilations = use_dilations
@@ -147,6 +152,7 @@ class NetworkParamsUNet(NetworkParams):
         n_levels: int = DEFAULT_LEVELS,
         n_features: int = DEFAULT_FEATURES,
         n_channels_skip: int | None = None,
+        n_dims: int = 2,
         bilinear: bool = True,
         pad_mode: str = "replicate",
     ) -> None:
@@ -164,12 +170,14 @@ class NetworkParamsUNet(NetworkParams):
             Number of features in the UNet. Default is 32.
         n_channels_skip : int, optional
             Number of skip connections channels. Default is None.
+        n_dims : int, optional
+            Number of dimensions of the signals/convolutions, by default 2.
         bilinear : bool, optional
             Whether to use bilinear interpolation. Default is True.
         pad_mode : str, optional
             Padding mode for convolutional layers. Default is "replicate".
         """
-        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
+        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out, n_dims=n_dims)
         self.n_levels = n_levels
         self.n_channels_skip = n_channels_skip
         self.bilinear = bilinear
@@ -194,6 +202,7 @@ class NetworkParamsUNet(NetworkParams):
             n_features=self.n_features,
             n_levels=self.n_levels,
             n_channels_skip=self.n_channels_skip,
+            n_dims=self.n_dims,
             bilinear=self.bilinear,
             pad_mode=self.pad_mode,
             device=device,
@@ -211,6 +220,7 @@ class NetworkParamsDnCNN(NetworkParams):
         n_channels_out: int = 1,
         n_layers: int = 20,
         n_features: int = 64,
+        n_dims: int = 2,
         kernel_size: int = 3,
         pad_mode: str = "replicate",
     ) -> None:
@@ -226,12 +236,14 @@ class NetworkParamsDnCNN(NetworkParams):
             Number of layers. Default is 20.
         n_features : int, optional
             Number of features. Default is 64.
+        n_dims : int, optional
+            Number of dimensions of the signals/convolutions, by default 2.
         kernel_size : int, optional
             Size of the convolutional kernel. Default is 3.
         pad_mode : str, optional
             Padding mode for the convolutional layers. Default is "replicate".
         """
-        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
+        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out, n_dims=n_dims)
         self.n_layers = n_layers
         self.kernel_size = kernel_size
         self.pad_mode = pad_mode
@@ -254,6 +266,7 @@ class NetworkParamsDnCNN(NetworkParams):
             n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
             n_features=self.n_features,
+            n_dims=self.n_dims,
             kernel_size=self.kernel_size,
             pad_mode=self.pad_mode,
             device=device,
@@ -271,6 +284,7 @@ class NetworkParamsResnet(NetworkParams):
         n_channels_out: int = 1,
         n_layers: int = 10,
         n_features: int = 24,
+        n_dims: int = 2,
         kernel_size: int = 3,
         pad_mode: str = "replicate",
     ) -> None:
@@ -286,12 +300,14 @@ class NetworkParamsResnet(NetworkParams):
             Number of layers. Default is 10.
         n_features : int, optional
             Number of features. Default is 24.
+        n_dims : int, optional
+            Number of dimensions of the signals/convolutions, by default 2.
         kernel_size : int, optional
             Size of the convolutional kernel. Default is 3.
         pad_mode : str, optional
             Padding mode for the convolutional layers. Default is "replicate".
         """
-        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out)
+        super().__init__(n_features=n_features, n_channels_in=n_channels_in, n_channels_out=n_channels_out, n_dims=n_dims)
         self.n_layers = n_layers
         self.kernel_size = kernel_size
         self.pad_mode = pad_mode
@@ -314,6 +330,7 @@ class NetworkParamsResnet(NetworkParams):
             n_channels_out=self.n_channels_out,
             n_layers=self.n_layers,
             n_features=self.n_features,
+            n_dims=self.n_dims,
             kernel_size=self.kernel_size,
             pad_mode=self.pad_mode,
             device=device,
@@ -359,6 +376,7 @@ def create_network(
     - "msd": Multi-Scale Dense Network.
     - "unet": U-Net.
     - "dncnn": Denoising Convolutional Neural Network.
+    - "resnet": Residual Neural Network.
 
     Examples
     --------
