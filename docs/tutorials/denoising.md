@@ -66,8 +66,8 @@ Other pre-configured models are available: MS-D net [[2](#ref.2)], DnCNN [[3](#r
 The supervised denoiser is trained using pairs of noisy and clean images. It learns to map noisy images to their clean counterparts.
 
 ```python
-denoiser_sup = ad.Denoiser(model=net_params, reg_val=REG_TV_VAL)
-denoiser_sup.train_supervised(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
+denoiser_sup = ad.Supervised(model=net_params, reg_val=REG_TV_VAL)
+denoiser_sup.train(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
 ```
 
 ### Noise2Void (N2V)
@@ -76,7 +76,7 @@ Noise2Void is a self-supervised denoising method that can work with a single noi
 
 ```python
 denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
-denoiser_n2v.train_selfsupervised(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
+denoiser_n2v.train(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
 ```
 
 ### Noise2Noise (N2N)
