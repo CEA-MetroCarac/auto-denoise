@@ -19,6 +19,7 @@ class MockModel(nn.Module):
 
 
 class MockSerializableModel3D(MockModel):
+    """Mock serializable model that returns the input volumes it receives."""
 
     def __init__(self):
         super().__init__()
