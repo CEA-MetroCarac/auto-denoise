@@ -9,15 +9,15 @@ class ConvBlock(nn.Sequential):
     """Convolution block: conv => BN => act."""
 
     def __init__(
-        self, in_ch: int, out_ch: int, kernel_size: int, ndim: int = 2, pad_mode: str = "replicate", last_block: bool = False
+        self, in_ch: int, out_ch: int, kernel_size: int, n_dims: int = 2, pad_mode: str = "replicate", last_block: bool = False
     ):
         pad_size = (kernel_size - 1) // 2
         if last_block:
             post_conv = []
         else:
-            post_conv = [NDBatchNorm[ndim](out_ch), nn.LeakyReLU(0.2, inplace=True)]
+            post_conv = [NDBatchNorm[n_dims](out_ch), nn.LeakyReLU(0.2, inplace=True)]
         super().__init__(
-            NDConv[ndim](in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=False),
+            NDConv[n_dims](in_ch, out_ch, kernel_size=kernel_size, padding=pad_size, padding_mode=pad_mode, bias=False),
             *post_conv,
         )
 
@@ -35,10 +35,10 @@ class DnCNN(nn.Sequential):
         n_channels_out: int,
         n_layers: int = 20,
         n_features: int = 32,
+        n_dims: int = 2,
         kernel_size: int = 3,
         pad_mode: str = "replicate",
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
-        ndim: int = 2,
     ):
         init_params = locals()
         del init_params["self"]
@@ -57,7 +57,7 @@ class DnCNN(nn.Sequential):
                 n_channels_in if i_l == 0 else n_features,
                 n_channels_out if i_l == (n_layers - 1) else n_features,
                 kernel_size=kernel_size,
-                ndim=ndim,
+                n_dims=n_dims,
                 pad_mode=pad_mode,
                 last_block=(i_l == (n_layers - 1)),
             )

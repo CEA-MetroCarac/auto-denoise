@@ -61,6 +61,27 @@ net_params = ad.NetworkParamsUNet(n_features=16)
 The variable `net_params` only defines the type of architecture that we want. When passed to the denoising algorithms, they will use it to create and initialize a U-net model.
 Other pre-configured models are available: MS-D net [[2](#ref.2)], DnCNN [[3](#ref.3)], and a custom ResNet implementation [[4](#ref.4)].
 
+### 1D and 3D signals
+
+We have recently introduced the support for 1D and 3D signals in `auto-denoise`.
+To correctly process these signals, it is enough to instantiate a model with the correct dimensionality.
+This means that we need to set the correct value for the parameter `n_dims` in the model definition:
+```python
+net_params = ad.NetworkParamsUNet(n_features=16, n_dims=1)  # 1D Convolutions
+```
+or
+```python
+net_params = ad.NetworkParamsUNet(n_features=16, n_dims=3)  # 3D Convolutions
+```
+
+!!! node "Using a 2D model with 3D data"
+
+    It is possible to use a 3D dataset with a 2D model. The depth direction will be interpreted as the batch dimension.
+    The 2D model will interpret each volume slice as a different image example.
+
+    This could be useful in GPU memory constrained scenarios, where the higher memory requirements of 3D convolutions (w.r.t. 2D convolutions) could exceed the available GPU memory.
+    This technique could save around 30\% memory, but it would lose the information along the depth direction.
+
 ### Supervised Denoiser
 
 The supervised denoiser is trained using pairs of noisy and clean images. It learns to map noisy images to their clean counterparts.

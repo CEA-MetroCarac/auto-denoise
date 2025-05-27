@@ -41,10 +41,12 @@ class DIP(Denoiser):
         algorithm. It also generates a mask array indicating the training pixels based
         on the provided ratio.
         """
-        if tgt.ndim < self.ndims:
-            raise ValueError(f"Target data should at least be of {self.ndims} dimensions, but its shape is {tgt.shape}")
+        if tgt.ndim < self.n_dims:
+            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {tgt.shape}")
+        if tgt.ndim > self.n_dims:
+            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -self.n_dims)))
 
-        inp = np.random.normal(size=tgt.shape[-self.ndims :], scale=0.25).astype(tgt.dtype)
+        inp = np.random.normal(size=tgt.shape[-self.n_dims :], scale=0.25).astype(tgt.dtype)
         mask_trn = get_random_pixel_mask(tgt.shape, mask_pixel_ratio=num_tst_ratio)
         return inp, tgt, mask_trn
 

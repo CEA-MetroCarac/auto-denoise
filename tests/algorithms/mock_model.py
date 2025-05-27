@@ -16,3 +16,11 @@ class MockModel(nn.Module):
     def forward(self, x):
         """Return the input images."""
         return self.param * x
+
+
+class MockSerializableModel3D(MockModel):
+    """Mock serializable model that returns the input volumes it receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.init_params = dict(n_dims=3)
