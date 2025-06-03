@@ -3,8 +3,10 @@
 from collections.abc import Sequence
 from typing import overload, Literal
 
+from numpy.typing import NDArray
 import torch as pt
 import torch.nn as nn
+
 
 NDConv = {1: nn.Conv1d, 2: nn.Conv2d, 3: nn.Conv3d}
 NDBatchNorm = {1: nn.BatchNorm1d, 2: nn.BatchNorm2d, 3: nn.BatchNorm3d}
@@ -50,7 +52,9 @@ class SamplingConvBlock(nn.Sequential):
 class MSDSampBlock(nn.Module):
     """MS-D Block containing the sequence of dilated convolutional layers."""
 
-    def __init__(self, n_channels_in: int, n_features: int, n_layers: int, dilations: Sequence[int], n_dims: int = 2) -> None:
+    def __init__(
+        self, n_channels_in: int, n_features: int, n_layers: int, dilations: Sequence[int] | NDArray, n_dims: int = 2
+    ) -> None:
         super().__init__()
         self.n_features = n_features
         self.n_layers = n_layers
@@ -82,7 +86,9 @@ class MSDSampBlock(nn.Module):
 class MSDDilBlock(nn.Module):
     """MS-D Block containing the sequence of dilated convolutional layers."""
 
-    def __init__(self, n_channels_in: int, n_features: int, n_layers: int, dilations: Sequence[int], n_dims: int = 2) -> None:
+    def __init__(
+        self, n_channels_in: int, n_features: int, n_layers: int, dilations: Sequence[int] | NDArray, n_dims: int = 2
+    ) -> None:
         super().__init__()
         self.n_features = n_features
         self.n_layers = n_layers
@@ -115,7 +121,7 @@ class MSDnet(nn.Module):
         n_layers: int = 12,
         n_features: int = 1,
         n_dims: int = 2,
-        dilations: Sequence[int] = [1, 2, 3, 4],
+        dilations: Sequence[int] | NDArray = tuple(range(1, 5)),
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         use_dilations: bool = True,
     ) -> None:
