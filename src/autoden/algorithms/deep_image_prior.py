@@ -4,9 +4,17 @@ Unsupervised denoiser implementation, based on the Deep Image Prior.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
+from copy import deepcopy
+
 import numpy as np
+import torch as pt
 from numpy.typing import NDArray
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_supervised, get_random_pixel_mask
+from tqdm.auto import tqdm
+
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_supervised, data_to_tensor, get_random_pixel_mask
+from autoden.losses import LossRegularizer
+from autoden.models.config import create_optimizer
+from autoden.models.param_utils import fix_invalid_gradient_values
 
 
 class DIP(Denoiser):
@@ -106,3 +114,94 @@ class DIP(Denoiser):
             self._plot_loss_curves(losses, f"Unsupervised {self.__class__.__name__} {optimizer.upper()}")
 
         return losses
+
+    def _train_pixelmask_small(
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        mask_trn: NDArray,
+        epochs: int,
+        optimizer: str = "adam",
+        regularizer: LossRegularizer | None = None,
+        lower_limit: float | NDArray | None = None,
+        restarts: int | None = None,
+    ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
+        losses_trn = []
+        losses_tst = []
+        losses_tst_sbi = []  # Scale and bias invariant loss
+
+        loss_data_fn = pt.nn.MSELoss(reduction="mean")
+        optim = create_optimizer(self.model, algo=optimizer)
+        sched = None
+        if restarts is not None:
+            sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
+
+        if lower_limit is not None and self.data_sb is not None:
+            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
+
+        best_epoch = -1
+        best_loss_tst = +np.inf
+        best_state = self.model.state_dict()
+        best_optim = optim.state_dict()
+
+        mask_tst = np.logical_not(mask_trn)
+
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
+        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+
+        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+
+        tgt_trn = tgt_t[mask_trn_t]
+        tgt_tst = tgt_t[mask_tst_t]
+        tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
+
+        self.model.train()
+        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
+            # Train
+            optim.zero_grad()
+            out_t: pt.Tensor = self.model(inp_t)
+
+            out_trn = out_t[mask_trn_t].flatten()
+            loss_trn = loss_data_fn(out_trn, tgt_trn)
+            if regularizer is not None:
+                loss_trn += regularizer(out_t)
+            if lower_limit is not None:
+                loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
+            loss_trn.backward()
+
+            fix_invalid_gradient_values(self.model)
+            optim.step()
+            if sched is not None:
+                sched.step()
+
+            # Test
+            out_tst = out_t[mask_tst_t]
+            loss_tst = loss_data_fn(out_tst, tgt_tst)
+            losses_tst.append(loss_tst.item())
+
+            out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
+            loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi)
+            losses_tst_sbi.append(loss_tst_sbi.item())
+
+            # Check improvement
+            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
+                best_loss_tst = losses_tst[-1]
+                best_epoch = epoch
+                best_state = deepcopy(self.model.state_dict())
+                best_optim = deepcopy(optim.state_dict())
+
+            # Save epoch
+            if self.save_epochs_dir is not None:
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.model.load_state_dict(best_state)
+
+        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
+        if self.save_epochs_dir is not None:
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
+
+        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))

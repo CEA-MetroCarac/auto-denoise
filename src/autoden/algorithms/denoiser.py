@@ -4,21 +4,22 @@ Base class and functions for all denoising algorithms.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
-import copy as cp
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Any
 from warnings import warn
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
 from numpy.typing import DTypeLike, NDArray
-from tqdm.auto import tqdm
+
 from autoden.losses import LossRegularizer, LossTV
-from autoden.models.config import NetworkParams, create_network, create_optimizer, SerializableModel
+from autoden.models.config import NetworkParams, SerializableModel, create_network
 from autoden.models.io import load_model_state, save_model_state
-from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
+from autoden.models.param_utils import get_num_parameters
 
 
 def data_to_tensor(
@@ -132,6 +133,76 @@ def get_random_pixel_mask(data_shape: Sequence[int] | NDArray, mask_pixel_ratio:
     return data_mask
 
 
+def get_flip_dims(n_dims: int) -> Sequence[tuple[int, ...]]:
+    """
+    Generate all possible combinations of dimensions to flip for a given number of dimensions.
+
+    Parameters
+    ----------
+    n_dims : int
+        The number of dimensions.
+
+    Returns
+    -------
+    Sequence[tuple[int, ...]]
+        A sequence of tuples, where each tuple represents a combination of dimensions to flip.
+        The dimensions are represented by negative indices, ranging from -n_dims to -1.
+
+    Examples
+    --------
+    >>> _get_flip_dims(2)
+    [(), (-2,), (-1,), (-2, -1)]
+    """
+    return sum([[*combinations(range(-n_dims, 0), d)] for d in range(n_dims + 1)], [])
+
+
+def random_flips(*imgs: pt.Tensor, flips: Sequence[tuple[int, ...]] | None = None) -> Sequence[pt.Tensor]:
+    """Randomly flip images.
+
+    Parameters
+    ----------
+    *imgs : torch.Tensor
+        The input images
+    flips : Sequence[tuple[int, ...]] | None, optional
+        If None, it will call _get_flip_dims on the ndim of the first image.
+        The flips to be selected from, by default None.
+
+    Returns
+    -------
+    Sequence[torch.Tensor]
+        The flipped images.
+    """
+    if flips is None:
+        flips = get_flip_dims(imgs[0].ndim - 2)
+    rand_val = np.random.randint(len(flips))
+
+    flip = flips[rand_val]
+    return [pt.flip(im, flip) for im in imgs]
+
+
+def random_rotations(*imgs: pt.Tensor, dims: tuple[int, int] = (-2, -1)) -> Sequence[pt.Tensor]:
+    """Randomly rotate images.
+
+    Parameters
+    ----------
+    *imgs : torch.Tensor
+        The input images
+    dims : tuple[int, int], optional
+        The dimensions to rotate, by default (-2, -1)
+
+    Returns
+    -------
+    Sequence[torch.Tensor]
+        The rotated images.
+    """
+    rand_val = np.random.randint(4)
+
+    if rand_val > 0:
+        return [pt.rot90(im, k=rand_val, dims=dims) for im in imgs]
+    else:
+        return imgs
+
+
 @dataclass
 class DataScaleBias:
     """Data scale and bias."""
@@ -209,6 +280,8 @@ class Denoiser(ABC):
 
     model: pt.nn.Module
     device: str
+    batch_size: int | None
+    augmentation: list[str]
 
     save_epochs_dir: str | None
     verbose: bool
@@ -219,6 +292,8 @@ class Denoiser(ABC):
         data_scale_bias: DataScaleBias | None = None,
         reg_val: float | LossRegularizer | None = 1e-5,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
+        batch_size: int | None = None,
+        augmentation: str | Sequence[str] | None = None,
         save_epochs_dir: str | None = None,
         verbose: bool = True,
     ) -> None:
@@ -253,10 +328,19 @@ class Denoiser(ABC):
         if verbose:
             get_num_parameters(self.model, verbose=True)
 
+        if augmentation is None:
+            augmentation = []
+        elif isinstance(augmentation, str):
+            augmentation = [augmentation.lower()]
+        elif isinstance(augmentation, Sequence):
+            augmentation = [str(a).lower() for a in augmentation]
+
         self.data_sb = data_scale_bias
 
         self.reg_val = reg_val
         self.device = device
+        self.batch_size = batch_size
+        self.augmentation = augmentation
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 
@@ -288,177 +372,6 @@ class Denoiser(ABC):
             if self.reg_val is not None:
                 warn(f"Invalid regularization {self.reg_val} (Type: {type(self.reg_val)}), disabling regularization.")
             return None
-
-    def _train_selfsimilar(
-        self,
-        dset_trn: tuple[NDArray, NDArray],
-        dset_tst: tuple[NDArray, NDArray],
-        epochs: int,
-        optimizer: str = "adam",
-        regularizer: LossRegularizer | None = None,
-        lower_limit: float | NDArray | None = None,
-    ) -> dict[str, NDArray]:
-        if epochs < 1:
-            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
-
-        losses_trn = []
-        losses_tst = []
-        losses_tst_sbi = []
-
-        loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.model, algo=optimizer)
-
-        if lower_limit is not None and self.data_sb is not None:
-            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
-
-        best_epoch = -1
-        best_loss_tst = +np.inf
-        best_state = self.model.state_dict()
-        best_optim = optim.state_dict()
-
-        inp_trn_t = data_to_tensor(dset_trn[0], device=self.device, n_dims=self.n_dims)
-        tgt_trn_t = data_to_tensor(dset_trn[1], device=self.device, n_dims=self.n_dims)
-
-        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims)
-        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
-        tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
-
-        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
-            # Train
-            self.model.train()
-
-            optim.zero_grad()
-            out_trn: pt.Tensor = self.model(inp_trn_t)
-            loss_trn = loss_data_fn(out_trn, tgt_trn_t)
-            if regularizer is not None:
-                loss_trn += regularizer(out_trn)
-            if lower_limit is not None:
-                loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
-            loss_trn.backward()
-
-            fix_invalid_gradient_values(self.model)
-
-            loss_trn_val = loss_trn.item()
-            losses_trn.append(loss_trn_val)
-
-            optim.step()
-
-            # Test
-            self.model.eval()
-            with pt.inference_mode():
-                out_tst = self.model(inp_tst_t)
-                loss_tst = loss_data_fn(out_tst, tgt_tst_t)
-                losses_tst.append(loss_tst.item())
-
-                out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
-                loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_t_sbi)
-                losses_tst_sbi.append(loss_tst_sbi.item())
-
-            # Check improvement
-            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-                best_loss_tst = losses_tst[-1]
-                best_epoch = epoch
-                best_state = cp.deepcopy(self.model.state_dict())
-                best_optim = cp.deepcopy(optim.state_dict())
-
-            # Save epoch
-            if self.save_epochs_dir:
-                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
-
-        self.model.load_state_dict(best_state)
-
-        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs_dir:
-            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
-
-        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
-
-    def _train_pixelmask_small(
-        self,
-        inp: NDArray,
-        tgt: NDArray,
-        mask_trn: NDArray,
-        epochs: int,
-        optimizer: str = "adam",
-        regularizer: LossRegularizer | None = None,
-        lower_limit: float | NDArray | None = None,
-    ) -> dict[str, NDArray]:
-        if epochs < 1:
-            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
-
-        losses_trn = []
-        losses_tst = []
-        losses_tst_sbi = []  # Scale and bias invariant loss
-
-        loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.model, algo=optimizer)
-
-        if lower_limit is not None and self.data_sb is not None:
-            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
-
-        best_epoch = -1
-        best_loss_tst = +np.inf
-        best_state = self.model.state_dict()
-        best_optim = optim.state_dict()
-
-        mask_tst = np.logical_not(mask_trn)
-
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
-        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
-
-        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
-
-        tgt_trn = tgt_t[mask_trn_t]
-        tgt_tst = tgt_t[mask_tst_t]
-        tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
-
-        self.model.train()
-        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
-            # Train
-            optim.zero_grad()
-            out_t: pt.Tensor = self.model(inp_t)
-
-            out_trn = out_t[mask_trn_t].flatten()
-            loss_trn = loss_data_fn(out_trn, tgt_trn)
-            if regularizer is not None:
-                loss_trn += regularizer(out_t)
-            if lower_limit is not None:
-                loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
-            loss_trn.backward()
-
-            fix_invalid_gradient_values(self.model)
-
-            losses_trn.append(loss_trn.item())
-            optim.step()
-
-            # Test
-            out_tst = out_t[mask_tst_t]
-            loss_tst = loss_data_fn(out_tst, tgt_tst)
-            losses_tst.append(loss_tst.item())
-
-            out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
-            loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi)
-            losses_tst_sbi.append(loss_tst_sbi.item())
-
-            # Check improvement
-            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-                best_loss_tst = losses_tst[-1]
-                best_epoch = epoch
-                best_state = cp.deepcopy(self.model.state_dict())
-                best_optim = cp.deepcopy(optim.state_dict())
-
-            # Save epoch
-            if self.save_epochs_dir is not None:
-                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
-
-        self.model.load_state_dict(best_state)
-
-        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
-        if self.save_epochs_dir is not None:
-            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
-
-        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
 
     def _save_state(self, epoch_num: int, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
