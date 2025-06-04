@@ -257,3 +257,37 @@ class N2N(Denoiser):
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
         return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
+
+    def infer(self, inp: NDArray, average_splits: bool = True) -> NDArray:
+        """
+        Perform inference on the input data.
+
+        Parameters
+        ----------
+        inp : NDArray
+            The input data to perform inference on. It is expected to have an extra dimension including the different splits.
+        average_splits : bool, optional
+            If True, the splits are averaged. Default is True.
+
+        Returns
+        -------
+        NDArray
+            The inferred output data. If `average_splits` is True, the splits are averaged.
+
+        Notes
+        -----
+        If `self.batch_size` is set, the input data is processed in batches to avoid memory issues.
+        """
+        inp_shape = inp.shape
+        inp = inp.reshape([inp_shape[0] * inp_shape[1], *inp_shape[2:]])
+        if self.batch_size is not None:
+            out = []
+            for b in tqdm(range(0, inp.shape[0], self.batch_size), desc="Inference batch"):
+                out.append(super().infer(inp[b : b + self.batch_size]))
+            out = np.concatenate(out, axis=0)
+        else:
+            out = super().infer(inp)
+        out = out.reshape(inp_shape)
+        if average_splits:
+            out = out.mean(axis=0)
+        return out
