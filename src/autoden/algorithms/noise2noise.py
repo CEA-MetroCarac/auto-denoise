@@ -84,6 +84,7 @@ class N2N(Denoiser):
         epochs: int,
         optimizer: str = "adam",
         lower_limit: float | NDArray | None = None,
+        restarts: int | None = None,
     ) -> dict[str, NDArray]:
         """
         Train the denoiser using the Noise2Noise self-supervised approach.
@@ -129,7 +130,14 @@ class N2N(Denoiser):
 
         reg = self._get_regularization()
         losses = self._train_pixelmask_batched(
-            tmp_inp, tmp_tgt, pixel_mask_trn, epochs=epochs, optimizer=optimizer, regularizer=reg, lower_limit=lower_limit
+            tmp_inp,
+            tmp_tgt,
+            pixel_mask_trn,
+            epochs=epochs,
+            optimizer=optimizer,
+            regularizer=reg,
+            lower_limit=lower_limit,
+            restarts=restarts,
         )
 
         if self.verbose:
@@ -208,7 +216,7 @@ class N2N(Denoiser):
 
                 # Train
                 tgt_trn = tgt_t_b[mask_trn_t_b]
-                out_trn = out_t[mask_trn_t_b].flatten()
+                out_trn = out_t[mask_trn_t_b]
                 loss_trn = loss_data_fn(out_trn, tgt_trn)
                 if regularizer is not None:
                     loss_trn += regularizer(out_t)
