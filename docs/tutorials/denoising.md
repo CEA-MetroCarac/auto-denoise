@@ -110,6 +110,23 @@ n2n_data = denoiser_n2n.prepare_data(imgs_noisy)
 denoiser_n2n.train(*n2n_data, epochs=EPOCHS)
 ```
 
+#### Batched processing
+
+N2N supports batched processing (both during training and inference). This is usually required for large datasets, where they cannot fully fit into GPU memory.
+The batch size is selected through the `batch_size` argument when N2N is initialized.
+
+```Python
+denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL, batch_size=16)
+```
+
+#### Data augmentation
+
+N2N also supports data augmentation in the form of image and volume flips. This could be used to virtually increase the data size during training.
+
+```Python
+denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL, augmentation="flip")
+```
+
 ### Deep Image Prior (DIP)
 
 Deep Image Prior is an unsupervised denoising method that can also work with a single image [[8](#ref.8)]. It uses the prior knowledge embedded in the network architecture to denoise the image. The `prepare_data` function is used to organize the data in such a way that the algorithm can handle it correctly.
@@ -141,10 +158,13 @@ den_n2v = denoiser_n2v.infer(imgs_noisy).mean(0)
 ### Noise2Noise (N2N) Inference
 
 ```python
-den_n2n = denoiser_n2n.infer(n2n_data[0]).mean(0)
+den_n2n = denoiser_n2n.infer(n2n_data[0])
 ```
 !!! note "Inference input"
     The output of the `prepare_data` function is also needed for the inference of N2N.
+
+!!! note "Inference output"
+    The `inference` function of N2N  automatically averages the splits, unless the `average_splits` flag is turned off.
 
 ### Deep Image Prior (DIP) Inference
 
