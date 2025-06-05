@@ -85,6 +85,7 @@ class N2N(Denoiser):
         optimizer: str = "adam",
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
+        accum_grads: bool = False,
     ) -> dict[str, NDArray]:
         """
         Train the denoiser using the Noise2Noise self-supervised approach.
@@ -138,6 +139,7 @@ class N2N(Denoiser):
             regularizer=reg,
             lower_limit=lower_limit,
             restarts=restarts,
+            accum_grads=accum_grads,
         )
 
         if self.verbose:
@@ -155,6 +157,7 @@ class N2N(Denoiser):
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
+        accum_grads: bool = False,
     ) -> dict[str, NDArray]:
         if epochs < 1:
             raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
@@ -191,11 +194,9 @@ class N2N(Denoiser):
         else:
             batches = [slice(None)]
 
+        optim.zero_grad()
         self.model.train()
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
-            # Using gradient accumulation over the batches
-            optim.zero_grad()
-
             loss_val_trn = 0.0
             loss_val_tst = 0.0
             loss_val_tst_sbi = 0.0
@@ -238,10 +239,20 @@ class N2N(Denoiser):
                 loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi) / num_instances
                 loss_val_tst_sbi += loss_tst_sbi.item()
 
-            fix_invalid_gradient_values(self.model)
-            optim.step()
-            if sched is not None:
-                sched.step()
+                if not accum_grads:
+                    fix_invalid_gradient_values(self.model)
+                    optim.step()
+                    if sched is not None:
+                        sched.step()
+                    optim.zero_grad()
+
+            if accum_grads:
+                # Using gradient accumulation over the batches
+                fix_invalid_gradient_values(self.model)
+                optim.step()
+                if sched is not None:
+                    sched.step()
+                optim.zero_grad()
 
             losses_trn.append(loss_val_trn)
             losses_tst.append(loss_val_tst)
