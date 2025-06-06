@@ -4,17 +4,19 @@ Self-supervised denoiser implementation, based on Noise2Void.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
-import copy as cp
 from collections.abc import Sequence
+from copy import deepcopy
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
+
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, data_to_tensor
 from autoden.losses import LossRegularizer
 from autoden.models.config import create_optimizer
 from autoden.models.param_utils import fix_invalid_gradient_values
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, data_to_tensor
 
 
 def _random_probe_mask(
@@ -214,8 +216,8 @@ class N2V(Denoiser):
             if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
                 best_loss_tst = losses_tst[-1]
                 best_epoch = epoch
-                best_state = cp.deepcopy(self.model.state_dict())
-                best_optim = cp.deepcopy(optim.state_dict())
+                best_state = deepcopy(self.model.state_dict())
+                best_optim = deepcopy(optim.state_dict())
 
             # Save epoch
             if self.save_epochs_dir:
