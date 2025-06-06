@@ -164,7 +164,7 @@ den_n2n = denoiser_n2n.infer(n2n_data[0])
     The output of the `prepare_data` function is also needed for the inference of N2N.
 
 !!! note "Inference output"
-    The `inference` function of N2N  automatically averages the splits, unless the `average_splits` flag is turned off.
+    The `inference` function of N2N  automatically averages the splits, unless the `average_splits` flag is set to `False`.
 
 ### Deep Image Prior (DIP) Inference
 

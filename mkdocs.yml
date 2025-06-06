@@ -19,8 +19,9 @@ nav:
   - Changelog: changelog.md
   - License: license.md
 - Examples & Tutorials:
-  - Denoising images: tutorials/denoising.md
+  - Denoising images & volumes: tutorials/denoising_imgs.md
   - Noise2Inverse: tutorials/noise2inverse.md
+  - Noise2Noise for spectra: tutorials/denoising_spectra.md
   - Saving & loading models: tutorials/models_io.md
 # defer to gen-files + literate-nav
 - API reference:
