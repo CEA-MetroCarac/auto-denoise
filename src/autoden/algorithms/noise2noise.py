@@ -82,6 +82,7 @@ class N2N(Denoiser):
         tgt: NDArray,
         pixel_mask_trn: NDArray,
         epochs: int,
+        learning_rate: float = 1e-3,
         optimizer: str = "adam",
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
@@ -135,6 +136,7 @@ class N2N(Denoiser):
             tmp_tgt,
             pixel_mask_trn,
             epochs=epochs,
+            learning_rate=learning_rate,
             optimizer=optimizer,
             regularizer=reg,
             lower_limit=lower_limit,
@@ -153,6 +155,7 @@ class N2N(Denoiser):
         tgt: NDArray,
         mask_trn: NDArray,
         epochs: int,
+        learning_rate: float = 1e-3,
         optimizer: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
@@ -167,7 +170,7 @@ class N2N(Denoiser):
         losses_tst_sbi = []  # Scale and bias invariant loss
 
         loss_data_fn = pt.nn.MSELoss(reduction="sum")
-        optim = create_optimizer(self.model, algo=optimizer)
+        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
         sched = None
         if restarts is not None:
             sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
