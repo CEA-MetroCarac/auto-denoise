@@ -24,3 +24,11 @@ class MockSerializableModel3D(MockModel):
     def __init__(self):
         super().__init__()
         self.init_params = dict(n_dims=3)
+
+
+class MockSerializableModel1D(MockModel):
+    """Mock serializable model that returns the input signals it receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.init_params = dict(n_dims=1)
