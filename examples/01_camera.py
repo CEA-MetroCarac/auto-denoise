@@ -63,7 +63,7 @@ denoiser_dip.train(*dip_data, epochs=EPOCHS)
 
 den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
 den_n2v = denoiser_n2v.infer(imgs_noisy).mean(0)
-den_n2n = denoiser_n2n.infer(n2n_data[0]).mean(0)
+den_n2n = denoiser_n2n.infer(n2n_data[0])
 den_dip = denoiser_dip.infer(dip_data[0])
 
 fig, axs = plt.subplots(2, 3, sharex=True, sharey=True)

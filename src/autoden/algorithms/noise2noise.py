@@ -64,7 +64,7 @@ class N2N(Denoiser):
 
         mask_trn = get_random_pixel_mask(inp.shape, mask_pixel_ratio=num_tst_ratio)
 
-        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=0)
+        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=1)
         if strategy.upper() == "1:X":
             tmp_inp = inp
             tmp_tgt = inp_x
@@ -311,5 +311,5 @@ class N2N(Denoiser):
             out = super().infer(inp)
         out = out.reshape(inp_shape)
         if average_splits:
-            out = out.mean(axis=0)
+            out = out.mean(axis=1)
         return out
