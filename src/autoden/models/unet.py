@@ -235,11 +235,6 @@ class UNet(nn.Module):
             n_features, n_channels_out, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True
         )
 
-        if verbose:
-            print(
-                f"Model {self.__class__.__name__} - "
-                f"num. parameters: {sum(p.numel() for p in self.parameters() if p.requires_grad)}"
-            )
         self.to(self.device)
 
     @overload
