@@ -290,7 +290,7 @@ class Denoiser(ABC):
         self,
         model: int | str | NetworkParams | pt.nn.Module | Mapping,
         data_scale_bias: DataScaleBias | None = None,
-        reg_val: float | LossRegularizer | None = 1e-5,
+        reg_val: float | LossRegularizer | None = None,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         batch_size: int | None = None,
         augmentation: str | Sequence[str] | None = None,
