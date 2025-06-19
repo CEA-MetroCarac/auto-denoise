@@ -60,6 +60,18 @@ def test_n2n_prepare_data_1d(n2n_algo_1d):
     assert mask_trn.shape == inp.shape
 
 
+def test_n2n_prepare_data_1d_batched(n2n_algo_1d):
+    """Test the prepare_data method of the N2N class with 1D input."""
+    inp_shape = (4, 10, 10)
+    prp_shape = (10, 4, 10)
+    inp = np.random.rand(*inp_shape)
+    tmp_inp, tmp_tgt, mask_trn = n2n_algo_1d.prepare_data(inp)
+    print(tmp_inp.shape, prp_shape)
+    assert tmp_inp.shape == prp_shape
+    assert tmp_tgt.shape == prp_shape
+    assert mask_trn.shape == prp_shape
+
+
 def test_n2n_prepare_data_3d(n2n_algo_3d):
     """Test the prepare_data method of the N2N class with 3D input."""
     inp = np.random.rand(10, 10, 10, 10)

@@ -59,13 +59,14 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        if inp.ndim < self.n_dims:
-            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {inp.shape}")
+        if inp.ndim < self.n_dims + 1:
+            raise ValueError(f"Target data should at least be of {self.n_dims + 1} dimensions, but its shape is {inp.shape}")
 
-        mask_trn = get_random_pixel_mask(inp.shape, mask_pixel_ratio=num_tst_ratio)
+        realizations_batch_axis = inp.ndim - self.n_dims - 1
 
-        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=1)
-        inp = inp.swapaxes(0, 1)
+        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=realizations_batch_axis)
+        inp = inp.swapaxes(0, realizations_batch_axis)
+
         if strategy.upper() == "1:X":
             tmp_inp = inp
             tmp_tgt = inp_x
@@ -74,6 +75,8 @@ class N2N(Denoiser):
             tmp_tgt = inp
         else:
             raise ValueError(f"Strategy {strategy} not implemented. Please choose one of: ['1:X', 'X:1']")
+
+        mask_trn = get_random_pixel_mask(inp.shape, mask_pixel_ratio=num_tst_ratio)
 
         return tmp_inp, tmp_tgt, mask_trn
 
@@ -312,5 +315,6 @@ class N2N(Denoiser):
             out = super().infer(inp)
         out = out.reshape(inp_shape)
         if average_splits:
-            out = out.mean(axis=1)
+            realization_batch_axis = -self.n_dims - 1
+            out = out.mean(axis=realization_batch_axis)
         return out
