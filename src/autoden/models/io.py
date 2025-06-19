@@ -5,7 +5,7 @@ IO module.
 from collections.abc import Mapping
 from pathlib import Path
 
-import torch as pt
+from torch import load, save
 from torch.nn import Module
 from autoden.models.config import SerializableModel
 
@@ -33,7 +33,7 @@ def save_model(dst_file: str | Path, model: Module, optim_state: Mapping | None 
     if not isinstance(model, SerializableModel):
         raise ValueError("The model needs to implement the protocol SerializableModel, in order to be writable to disk")
 
-    pt.save(
+    save(
         {
             "model_class": model.__class__.__name__,
             "init_params": model.init_params,
@@ -115,4 +115,28 @@ def load_model_state(save_epochs_dir: str | Path, epoch_num: int | None = None) 
         raise ValueError(f"Model state {state_path} does not exist!")
 
     print(f"Loading state path: {state_path}")
-    return pt.load(state_path)
+    return load_model(state_path)
+
+
+def load_model(file_path: str | Path) -> dict:
+    """
+    Load a model from a file.
+
+    Parameters
+    ----------
+    file_path : str or Path
+        The path to the file from which the model will be loaded.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the loaded model state, including the model class name,
+        initialization parameters, epoch number, state dictionary, and optimizer state
+        (if available).
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    """
+    return load(file_path)
