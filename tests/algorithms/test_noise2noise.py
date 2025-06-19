@@ -53,7 +53,7 @@ def test_n2n_train(n2n_algo):
 
 def test_n2n_prepare_data_1d(n2n_algo_1d):
     """Test the prepare_data method of the N2N class with 1D input."""
-    inp = np.random.rand(10)
+    inp = np.random.rand(4, 10)
     tmp_inp, tmp_tgt, mask_trn = n2n_algo_1d.prepare_data(inp)
     assert tmp_inp.shape == inp.shape
     assert tmp_tgt.shape == inp.shape
@@ -71,9 +71,9 @@ def test_n2n_prepare_data_3d(n2n_algo_3d):
 
 def test_n2n_train_1d(n2n_algo_1d):
     """Test the train method of the N2N class with 1D input."""
-    inp = np.random.rand(10)
-    tgt = np.random.rand(10)
-    pixel_mask_trn = np.random.rand(10) > 0.5
+    inp = np.random.rand(4, 10)
+    tgt = np.random.rand(4, 10)
+    pixel_mask_trn = np.random.rand(4, 10) > 0.5
     epochs = 1
     losses = n2n_algo_1d.train(inp, tgt, pixel_mask_trn, epochs)
     assert "loss_trn" in losses
