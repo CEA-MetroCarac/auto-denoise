@@ -141,7 +141,9 @@ class N2V(Denoiser):
         algo: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
+        loss_track_type: str = "tst",
     ) -> dict[str, NDArray]:
+        losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
         losses_trn = []
         losses_tst = []
         losses_tst_sbi = []  # Scale and bias invariant loss
@@ -152,7 +154,7 @@ class N2V(Denoiser):
             lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         best_epoch = -1
-        best_loss_tst = +np.inf
+        best_loss = +np.inf
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
@@ -177,15 +179,18 @@ class N2V(Denoiser):
             ref_to_check = inp_trn_t[(..., *to_check)].flatten()
 
             loss_trn = loss_data_fn(out_to_check, ref_to_check)
+
+            losses["trn_data"].append(loss_trn.item())
+
             if regularizer is not None:
                 loss_trn += regularizer(out_trn)
             if lower_limit is not None:
                 loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
+
+            losses["trn"].append(loss_trn.item())
             loss_trn.backward()
 
             fix_invalid_gradient_values(self.model)
-
-            losses_trn.append(loss_trn.item())
             optim.step()
 
             # Test
@@ -205,16 +210,16 @@ class N2V(Denoiser):
                 ref_to_check = inp_tst_t[..., to_check[0], to_check[1]].flatten()
 
                 loss_tst = loss_data_fn(out_to_check, ref_to_check)
-                losses_tst.append(loss_tst.item())
+                losses["tst"].append(loss_tst.item())
 
                 out_to_check_sbi = (out_to_check - out_to_check.mean()) / (out_to_check.std() + 1e-5)
                 ref_to_check_sbi = (ref_to_check - ref_to_check.mean()) / (ref_to_check.std() + 1e-5)
                 loss_tst_sbi = loss_data_fn(out_to_check_sbi, ref_to_check_sbi)
-                losses_tst_sbi.append(loss_tst_sbi.item())
+                losses["tst_sbi"].append(loss_tst_sbi.item())
 
             # Check improvement
-            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-                best_loss_tst = losses_tst[-1]
+            if losses[loss_track_type][-1] < best_loss:
+                best_loss = losses[loss_track_type][-1]
                 best_epoch = epoch
                 best_state = deepcopy(self.model.state_dict())
                 best_optim = deepcopy(optim.state_dict())
@@ -225,8 +230,8 @@ class N2V(Denoiser):
 
         self.model.load_state_dict(best_state)
 
-        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
+        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
         if self.save_epochs_dir:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
-        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
+        return {f"loss_{loss_type}": np.array(loss_vals) for loss_type, loss_vals in losses.items()}

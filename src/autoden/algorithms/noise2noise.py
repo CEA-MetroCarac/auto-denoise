@@ -165,13 +165,12 @@ class N2N(Denoiser):
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
         accum_grads: bool = False,
+        loss_track_type: str = "tst",
     ) -> dict[str, NDArray]:
         if epochs < 1:
             raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
 
-        losses_trn = []
-        losses_tst = []
-        losses_tst_sbi = []  # Scale and bias invariant loss
+        losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
 
         loss_data_fn = pt.nn.MSELoss(reduction="sum")
         optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
@@ -183,7 +182,7 @@ class N2N(Denoiser):
             lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         best_epoch = -1
-        best_loss_tst = +np.inf
+        best_loss = +np.inf
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
@@ -205,6 +204,7 @@ class N2N(Denoiser):
         self.model.train()
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
             loss_val_trn = 0.0
+            loss_val_trn_data = 0.0
             loss_val_tst = 0.0
             loss_val_tst_sbi = 0.0
 
@@ -226,10 +226,14 @@ class N2N(Denoiser):
                 tgt_trn = tgt_t_b[mask_trn_t_b]
                 out_trn = out_t[mask_trn_t_b]
                 loss_trn = loss_data_fn(out_trn, tgt_trn)
+
+                loss_val_trn_data += loss_trn.item() / num_instances
+
                 if regularizer is not None:
                     loss_trn += regularizer(out_t)
                 if lower_limit is not None:
                     loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
+
                 loss_trn /= num_instances
                 loss_val_trn += loss_trn.item()
 
@@ -261,13 +265,14 @@ class N2N(Denoiser):
                     sched.step()
                 optim.zero_grad()
 
-            losses_trn.append(loss_val_trn)
-            losses_tst.append(loss_val_tst)
-            losses_tst_sbi.append(loss_val_tst_sbi)
+            losses["trn"].append(loss_val_trn)
+            losses["trn_data"].append(loss_val_trn_data)
+            losses["tst"].append(loss_val_tst)
+            losses["tst_sbi"].append(loss_val_tst_sbi)
 
             # Check improvement
-            if losses_tst[-1] < best_loss_tst if losses_tst[-1] is not None else False:
-                best_loss_tst = losses_tst[-1]
+            if losses[loss_track_type][-1] < best_loss:
+                best_loss = losses[loss_track_type][-1]
                 best_epoch = epoch
                 best_state = deepcopy(self.model.state_dict())
                 best_optim = deepcopy(optim.state_dict())
@@ -278,11 +283,11 @@ class N2N(Denoiser):
 
         self.model.load_state_dict(best_state)
 
-        print(f"Best epoch: {best_epoch}, with tst_loss: {best_loss_tst:.5}")
+        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
         if self.save_epochs_dir is not None:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
-        return dict(loss_trn=np.array(losses_trn), loss_tst=np.array(losses_tst), loss_tst_sbi=np.array(losses_tst_sbi))
+        return {f"loss_{loss_type}": np.array(loss_vals) for loss_type, loss_vals in losses.items()}
 
     def infer(self, inp: NDArray, average_splits: bool = True) -> NDArray:
         """
