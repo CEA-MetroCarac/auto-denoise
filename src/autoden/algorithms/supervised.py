@@ -88,6 +88,7 @@ class Supervised(Denoiser):
         optimizer: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
+        accum_grads: bool = False,
         loss_track_type: str = "tst",
     ) -> dict[str, NDArray]:
         if epochs < 1:
@@ -112,26 +113,51 @@ class Supervised(Denoiser):
         tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
+        num_trn_instances = inp_trn_t.shape[0]
+
+        if self.batch_size is not None:
+            trn_batches = [
+                range(ii, min(ii + self.batch_size, num_trn_instances)) for ii in range(0, num_trn_instances, self.batch_size)
+            ]
+        else:
+            trn_batches = [slice(None)]
+
+        optim.zero_grad()
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
+            loss_val_trn = 0.0
+            loss_val_trn_data = 0.0
+
             # Train
             self.model.train()
+            for trn_batch in trn_batches:
+                inp_trn_t_b = inp_trn_t[trn_batch]
+                tgt_trn_t_b = tgt_trn_t[trn_batch]
+                out_trn: pt.Tensor = self.model(inp_trn_t_b)
 
-            optim.zero_grad()
-            out_trn: pt.Tensor = self.model(inp_trn_t)
-            loss_trn = loss_data_fn(out_trn, tgt_trn_t)
+                loss_trn = loss_data_fn(out_trn, tgt_trn_t_b)
+                loss_val_trn_data += loss_trn.item() / num_trn_instances
 
-            losses["trn_data"].append(loss_trn.item())
+                if regularizer is not None:
+                    loss_trn += regularizer(out_trn)
+                if lower_limit is not None:
+                    loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
 
-            if regularizer is not None:
-                loss_trn += regularizer(out_trn)
-            if lower_limit is not None:
-                loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
+                loss_trn /= num_trn_instances
+                loss_val_trn += loss_trn.item()
+                loss_trn.backward()
 
-            losses["trn"].append(loss_trn.item())
-            loss_trn.backward()
+                if not accum_grads:
+                    fix_invalid_gradient_values(self.model)
+                    optim.step()
+                    optim.zero_grad()
 
-            fix_invalid_gradient_values(self.model)
-            optim.step()
+            if accum_grads:
+                fix_invalid_gradient_values(self.model)
+                optim.step()
+                optim.zero_grad()
+
+            losses["trn"].append(loss_val_trn)
+            losses["trn_data"].append(loss_val_trn_data)
 
             # Test
             self.model.eval()
