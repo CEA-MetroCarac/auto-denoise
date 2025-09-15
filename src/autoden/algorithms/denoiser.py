@@ -6,6 +6,7 @@ Base class and functions for all denoising algorithms.
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from itertools import combinations
 from typing import Any
@@ -15,11 +16,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
 from numpy.typing import DTypeLike, NDArray
+from tqdm.auto import tqdm
 
 from autoden.losses import LossRegularizer, LossTV
-from autoden.models.config import NetworkParams, SerializableModel, create_network
+from autoden.models.config import NetworkParams, SerializableModel, create_network, create_optimizer
 from autoden.models.io import load_model_state, save_model_state
-from autoden.models.param_utils import get_num_parameters
+from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
 
 
 def data_to_tensor(
@@ -104,7 +106,7 @@ def get_random_pixel_mask(data_shape: Sequence[int] | NDArray, mask_pixel_ratio:
     """
     Generate a random pixel mask for a given data shape.
 
-    This function creates a mask where a specified ratio of pixels are set to False,
+    This function creates a mask where a specified ratio of pixels are set to True,
     effectively masking those pixels. The remaining pixels are set to True.
 
     Parameters
@@ -112,13 +114,13 @@ def get_random_pixel_mask(data_shape: Sequence[int] | NDArray, mask_pixel_ratio:
     data_shape : Sequence[int] | NDArray
         The shape of the data array for which the mask is to be generated.
     mask_pixel_ratio : float
-        The ratio of pixels to be masked (set to False). Must be between 0 and 1.
+        The ratio of pixels to be masked (set to True). Must be between 0 and 1.
 
     Returns
     -------
     NDArray
         A boolean array of the same shape as `data_shape` with the specified ratio
-        of pixels set to False.
+        of pixels set to True.
 
     Examples
     --------
@@ -127,10 +129,29 @@ def get_random_pixel_mask(data_shape: Sequence[int] | NDArray, mask_pixel_ratio:
     >>> mask = get_random_pixel_mask(data_shape, mask_pixel_ratio)
     >>> print(mask)
     """
-    data_mask = np.ones(data_shape, dtype=bool)
+    data_mask = np.zeros(data_shape, dtype=bool)
     rnd_inds = np.random.randint(low=0, high=data_mask.size, size=int(data_mask.size * mask_pixel_ratio))
-    data_mask.flat[rnd_inds] = False
+    data_mask.flat[rnd_inds] = True
     return data_mask
+
+
+def get_random_image_indices(num_imgs: int, num_tst_ratio: float) -> list:
+    """Return a list of random indices from 0 to num_imgs - 1.
+
+    Parameters
+    ----------
+    num_imgs : int
+        Total number of images.
+    num_tst_ratio : float
+        Ratio of images to select.
+
+    Returns
+    -------
+    list
+        List of random indices.
+    """
+    num_tst_imgs = int(num_imgs * num_tst_ratio)
+    return list(np.random.choice(num_imgs, size=num_tst_imgs, replace=False))
 
 
 def get_flip_dims(n_dims: int) -> Sequence[tuple[int, ...]]:
@@ -411,10 +432,6 @@ class Denoiser(ABC):
         fig.tight_layout()
         plt.show(block=False)
 
-    @abstractmethod
-    def train(self, *args: Any, **kwds: Any) -> dict[str, NDArray]:
-        """Training of the model, given the required input."""
-
     def infer(self, inp: NDArray) -> NDArray:
         """Inference, given an initial stack of images.
 
@@ -444,3 +461,266 @@ class Denoiser(ABC):
             output = (output + self.data_sb.bias_out) / self.data_sb.scale_out
 
         return output
+
+    @abstractmethod
+    def train(self, *args: Any, **kwds: Any) -> dict[str, NDArray]:
+        """Training of the model, given the required input."""
+
+    def _train_selfsimilar_batched(
+        self,
+        dset_trn: tuple[NDArray, NDArray],
+        dset_tst: tuple[NDArray, NDArray],
+        epochs: int,
+        learning_rate: float = 1e-3,
+        optimizer: str = "adam",
+        regularizer: LossRegularizer | None = None,
+        lower_limit: float | NDArray | None = None,
+        restarts: int | None = None,
+        accum_grads: bool = False,
+        loss_track_type: str = "tst",
+    ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
+        losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
+        loss_data_fn = pt.nn.MSELoss(reduction="mean")
+        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
+        sched = None
+        if restarts is not None:
+            sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
+
+        if lower_limit is not None and self.data_sb is not None:
+            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
+
+        best_epoch = -1
+        best_loss = +np.inf
+        best_state = self.model.state_dict()
+        best_optim = optim.state_dict()
+
+        inp_trn_t = data_to_tensor(dset_trn[0], device=self.device, n_dims=self.n_dims)
+        tgt_trn_t = data_to_tensor(dset_trn[1], device=self.device, n_dims=self.n_dims)
+
+        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims)
+        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
+        tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
+
+        num_trn_instances = inp_trn_t.shape[0]
+
+        if self.batch_size is not None:
+            trn_batches = [
+                range(ii, min(ii + self.batch_size, num_trn_instances)) for ii in range(0, num_trn_instances, self.batch_size)
+            ]
+        else:
+            trn_batches = [slice(None)]
+
+        optim.zero_grad()
+        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
+            loss_val_trn = 0.0
+            loss_val_trn_data = 0.0
+
+            # Train
+            self.model.train()
+            for trn_batch in trn_batches:
+                inp_trn_t_b = inp_trn_t[trn_batch]
+                tgt_trn_t_b = tgt_trn_t[trn_batch]
+
+                # Augmentation
+                if "flip" in self.augmentation:
+                    inp_trn_t_b, tgt_trn_t_b = random_flips(inp_trn_t_b, tgt_trn_t_b)
+
+                out_trn: pt.Tensor = self.model(inp_trn_t_b)
+
+                loss_trn = loss_data_fn(out_trn, tgt_trn_t_b)
+                loss_val_trn_data += loss_trn.item() / num_trn_instances
+
+                if regularizer is not None:
+                    loss_trn += regularizer(out_trn)
+                if lower_limit is not None:
+                    loss_trn += pt.nn.ReLU(inplace=False)(-out_trn.flatten() + lower_limit).mean()
+
+                loss_trn /= num_trn_instances
+                loss_val_trn += loss_trn.item()
+                loss_trn.backward()
+
+                if not accum_grads:
+                    fix_invalid_gradient_values(self.model)
+                    optim.step()
+                    if sched is not None:
+                        sched.step()
+                    optim.zero_grad()
+
+            if accum_grads:
+                fix_invalid_gradient_values(self.model)
+                optim.step()
+                if sched is not None:
+                    sched.step()
+                optim.zero_grad()
+
+            losses["trn"].append(loss_val_trn)
+            losses["trn_data"].append(loss_val_trn_data)
+
+            # Test
+            self.model.eval()
+            with pt.inference_mode():
+                out_tst = self.model(inp_tst_t)
+                loss_tst = loss_data_fn(out_tst, tgt_tst_t)
+                losses["tst"].append(loss_tst.item())
+
+                out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
+                loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_t_sbi)
+                losses["tst_sbi"].append(loss_tst_sbi.item())
+
+            # Check improvement
+            if losses[loss_track_type][-1] < best_loss:
+                best_loss = losses[loss_track_type][-1]
+                best_epoch = epoch
+                best_state = deepcopy(self.model.state_dict())
+                best_optim = deepcopy(optim.state_dict())
+
+            # Save epoch
+            if self.save_epochs_dir:
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.model.load_state_dict(best_state)
+
+        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
+        if self.save_epochs_dir:
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
+
+        return {f"loss_{loss_type}": np.array(loss_vals) for loss_type, loss_vals in losses.items()}
+
+    def _train_pixelmask_batched(
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        mask_tst: NDArray,
+        epochs: int,
+        learning_rate: float = 1e-3,
+        optimizer: str = "adam",
+        regularizer: LossRegularizer | None = None,
+        lower_limit: float | NDArray | None = None,
+        restarts: int | None = None,
+        accum_grads: bool = False,
+        loss_track_type: str = "tst",
+    ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
+        losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
+
+        loss_data_fn = pt.nn.MSELoss(reduction="sum")
+        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
+        sched = None
+        if restarts is not None:
+            sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
+
+        if lower_limit is not None and self.data_sb is not None:
+            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
+
+        best_epoch = -1
+        best_loss = +np.inf
+        best_state = self.model.state_dict()
+        best_optim = optim.state_dict()
+
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
+        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+
+        mask_trn = np.logical_not(mask_tst)
+
+        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+
+        num_instances = inp_t.shape[0]
+        if self.batch_size is not None:
+            batches = [range(ii, min(ii + self.batch_size, num_instances)) for ii in range(0, num_instances, self.batch_size)]
+        else:
+            batches = [slice(None)]
+
+        optim.zero_grad()
+        self.model.train()
+        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
+            loss_val_trn = 0.0
+            loss_val_trn_data = 0.0
+            loss_val_tst = 0.0
+            loss_val_tst_sbi = 0.0
+
+            for batch in batches:
+                # Batch selection
+                inp_t_b = inp_t[batch]
+                tgt_t_b = tgt_t[batch]
+                mask_trn_t_b = mask_trn_t[batch]
+                mask_tst_t_b = mask_tst_t[batch]
+
+                # Augmentation
+                if "flip" in self.augmentation:
+                    inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b = random_flips(inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b)
+
+                # Fwd
+                out_t: pt.Tensor = self.model(inp_t_b)
+
+                # Train
+                tgt_trn = tgt_t_b[mask_trn_t_b]
+                out_trn = out_t[mask_trn_t_b]
+                loss_trn = loss_data_fn(out_trn, tgt_trn)
+
+                loss_val_trn_data += loss_trn.item() / num_instances
+
+                if regularizer is not None:
+                    loss_trn += regularizer(out_t)
+                if lower_limit is not None:
+                    loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
+
+                loss_trn /= num_instances
+                loss_val_trn += loss_trn.item()
+
+                loss_trn.backward()
+
+                # Test
+                tgt_tst = tgt_t_b[mask_tst_t_b]
+                out_tst = out_t[mask_tst_t_b]
+                loss_tst = loss_data_fn(out_tst, tgt_tst) / num_instances
+                loss_val_tst += loss_tst.item()
+
+                tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
+                out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
+                loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi) / num_instances
+                loss_val_tst_sbi += loss_tst_sbi.item()
+
+                if not accum_grads:
+                    fix_invalid_gradient_values(self.model)
+                    optim.step()
+                    if sched is not None:
+                        sched.step()
+                    optim.zero_grad()
+
+            if accum_grads:
+                # Using gradient accumulation over the batches
+                fix_invalid_gradient_values(self.model)
+                optim.step()
+                if sched is not None:
+                    sched.step()
+                optim.zero_grad()
+
+            losses["trn"].append(loss_val_trn)
+            losses["trn_data"].append(loss_val_trn_data)
+            losses["tst"].append(loss_val_tst)
+            losses["tst_sbi"].append(loss_val_tst_sbi)
+
+            # Check improvement
+            if losses[loss_track_type][-1] < best_loss:
+                best_loss = losses[loss_track_type][-1]
+                best_epoch = epoch
+                best_state = deepcopy(self.model.state_dict())
+                best_optim = deepcopy(optim.state_dict())
+
+            # Save epoch
+            if self.save_epochs_dir is not None:
+                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
+
+        self.model.load_state_dict(best_state)
+
+        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
+        if self.save_epochs_dir is not None:
+            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
+
+        return {f"loss_{loss_type}": np.array(loss_vals) for loss_type, loss_vals in losses.items()}

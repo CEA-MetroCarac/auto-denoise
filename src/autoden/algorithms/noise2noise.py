@@ -4,23 +4,15 @@ Self-supervised denoiser implementation, based on Noise2Noise.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
-from copy import deepcopy
-
 import numpy as np
-import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
 from autoden.algorithms.denoiser import (
     Denoiser,
-    random_flips,
     compute_scaling_selfsupervised,
-    data_to_tensor,
     get_random_pixel_mask,
 )
-from autoden.losses import LossRegularizer
-from autoden.models.config import create_optimizer
-from autoden.models.param_utils import fix_invalid_gradient_values
 
 
 class N2N(Denoiser):
@@ -84,7 +76,7 @@ class N2N(Denoiser):
         self,
         inp: NDArray,
         tgt: NDArray,
-        pixel_mask_trn: NDArray,
+        pixel_mask_tst: NDArray,
         epochs: int,
         learning_rate: float = 1e-3,
         optimizer: str = "adam",
@@ -103,15 +95,23 @@ class N2N(Denoiser):
         tgt : NDArray
             The target data to be used for training. This should be a NumPy array of shape (N, H, W), where N is the
             number of samples, and H and W are the height and width of each sample, respectively.
-        pixel_mask_trn : NDArray
-            The mask array indicating the training pixels.
+        pixel_mask_tst : NDArray
+            The mask array indicating the test pixels.
         epochs : int
             The number of epochs to train the model.
+        learning_rate : float, optional
+            The learning rate for the optimizer. Default is 1e-3.
         optimizer : str, optional
             The optimization algorithm to be used for training. Default is "adam".
         lower_limit : float | NDArray | None, optional
             The lower limit for the input data. If provided, the input data will be clipped to this limit.
             Default is None.
+        restarts : int | None, optional
+            The number of times to restart the cosine annealing of the learning rate. If provided, the cosine annealing
+            of the learning rate will be restarted the specified number of times. Default is None.
+        accum_grads : bool, optional
+            Whether to accumulate gradients over multiple batches. If True, gradients will be accumulated over multiple
+            batches before updating the model parameters. Default is False.
 
         Returns
         -------
@@ -138,7 +138,7 @@ class N2N(Denoiser):
         losses = self._train_pixelmask_batched(
             tmp_inp,
             tmp_tgt,
-            pixel_mask_trn,
+            pixel_mask_tst,
             epochs=epochs,
             learning_rate=learning_rate,
             optimizer=optimizer,
@@ -152,142 +152,6 @@ class N2N(Denoiser):
             self._plot_loss_curves(losses, f"Self-supervised {self.__class__.__name__} {optimizer.upper()}")
 
         return losses
-
-    def _train_pixelmask_batched(
-        self,
-        inp: NDArray,
-        tgt: NDArray,
-        mask_trn: NDArray,
-        epochs: int,
-        learning_rate: float = 1e-3,
-        optimizer: str = "adam",
-        regularizer: LossRegularizer | None = None,
-        lower_limit: float | NDArray | None = None,
-        restarts: int | None = None,
-        accum_grads: bool = False,
-        loss_track_type: str = "tst",
-    ) -> dict[str, NDArray]:
-        if epochs < 1:
-            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
-
-        losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
-
-        loss_data_fn = pt.nn.MSELoss(reduction="sum")
-        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
-        sched = None
-        if restarts is not None:
-            sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
-
-        if lower_limit is not None and self.data_sb is not None:
-            lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
-
-        best_epoch = -1
-        best_loss = +np.inf
-        best_state = self.model.state_dict()
-        best_optim = optim.state_dict()
-
-        mask_tst = np.logical_not(mask_trn)
-
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
-        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
-
-        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
-
-        num_instances = inp_t.shape[0]
-        if self.batch_size is not None:
-            batches = [range(ii, min(ii + self.batch_size, num_instances)) for ii in range(0, num_instances, self.batch_size)]
-        else:
-            batches = [slice(None)]
-
-        optim.zero_grad()
-        self.model.train()
-        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
-            loss_val_trn = 0.0
-            loss_val_trn_data = 0.0
-            loss_val_tst = 0.0
-            loss_val_tst_sbi = 0.0
-
-            for batch in batches:
-                # Batch selection
-                inp_t_b = inp_t[batch]
-                tgt_t_b = tgt_t[batch]
-                mask_trn_t_b = mask_trn_t[batch]
-                mask_tst_t_b = mask_tst_t[batch]
-
-                # Augmentation
-                if "flip" in self.augmentation:
-                    inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b = random_flips(inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b)
-
-                # Fwd
-                out_t: pt.Tensor = self.model(inp_t_b)
-
-                # Train
-                tgt_trn = tgt_t_b[mask_trn_t_b]
-                out_trn = out_t[mask_trn_t_b]
-                loss_trn = loss_data_fn(out_trn, tgt_trn)
-
-                loss_val_trn_data += loss_trn.item() / num_instances
-
-                if regularizer is not None:
-                    loss_trn += regularizer(out_t)
-                if lower_limit is not None:
-                    loss_trn += pt.nn.ReLU(inplace=False)(-out_t.flatten() + lower_limit).mean()
-
-                loss_trn /= num_instances
-                loss_val_trn += loss_trn.item()
-
-                loss_trn.backward()
-
-                # Test
-                tgt_tst = tgt_t_b[mask_tst_t_b]
-                out_tst = out_t[mask_tst_t_b]
-                loss_tst = loss_data_fn(out_tst, tgt_tst) / num_instances
-                loss_val_tst += loss_tst.item()
-
-                tgt_tst_sbi = (tgt_tst - tgt_tst.mean()) / (tgt_tst.std() + 1e-5)
-                out_tst_sbi = (out_tst - out_tst.mean()) / (out_tst.std() + 1e-5)
-                loss_tst_sbi = loss_data_fn(out_tst_sbi, tgt_tst_sbi) / num_instances
-                loss_val_tst_sbi += loss_tst_sbi.item()
-
-                if not accum_grads:
-                    fix_invalid_gradient_values(self.model)
-                    optim.step()
-                    if sched is not None:
-                        sched.step()
-                    optim.zero_grad()
-
-            if accum_grads:
-                # Using gradient accumulation over the batches
-                fix_invalid_gradient_values(self.model)
-                optim.step()
-                if sched is not None:
-                    sched.step()
-                optim.zero_grad()
-
-            losses["trn"].append(loss_val_trn)
-            losses["trn_data"].append(loss_val_trn_data)
-            losses["tst"].append(loss_val_tst)
-            losses["tst_sbi"].append(loss_val_tst_sbi)
-
-            # Check improvement
-            if losses[loss_track_type][-1] < best_loss:
-                best_loss = losses[loss_track_type][-1]
-                best_epoch = epoch
-                best_state = deepcopy(self.model.state_dict())
-                best_optim = deepcopy(optim.state_dict())
-
-            # Save epoch
-            if self.save_epochs_dir is not None:
-                self._save_state(epoch_num=epoch, optim_state=optim.state_dict())
-
-        self.model.load_state_dict(best_state)
-
-        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
-        if self.save_epochs_dir is not None:
-            self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
-
-        return {f"loss_{loss_type}": np.array(loss_vals) for loss_type, loss_vals in losses.items()}
 
     def infer(self, inp: NDArray, average_splits: bool = True) -> NDArray:
         """
