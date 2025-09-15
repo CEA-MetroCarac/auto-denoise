@@ -12,7 +12,7 @@ import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_supervised, data_to_tensor
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_supervised, data_to_tensor, random_flips
 from autoden.losses import LossRegularizer
 from autoden.models.config import create_optimizer
 from autoden.models.param_utils import fix_invalid_gradient_values
@@ -71,7 +71,7 @@ class Supervised(Denoiser):
         dset_tst = (inp[tst_inds], tgt[tst_inds])
 
         reg = self._get_regularization()
-        losses = self._train_selfsimilar(
+        losses = self._train_selfsimilar_batched(
             dset_trn, dset_tst, epochs=epochs, optimizer=optimizer, regularizer=reg, lower_limit=lower_limit
         )
 
@@ -80,7 +80,7 @@ class Supervised(Denoiser):
 
         return losses
 
-    def _train_selfsimilar(
+    def _train_selfsimilar_batched(
         self,
         dset_trn: tuple[NDArray, NDArray],
         dset_tst: tuple[NDArray, NDArray],
@@ -88,6 +88,7 @@ class Supervised(Denoiser):
         optimizer: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
+        restarts: int | None = None,
         accum_grads: bool = False,
         loss_track_type: str = "tst",
     ) -> dict[str, NDArray]:
@@ -97,6 +98,9 @@ class Supervised(Denoiser):
         losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = create_optimizer(self.model, algo=optimizer)
+        sched = None
+        if restarts is not None:
+            sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
@@ -132,6 +136,11 @@ class Supervised(Denoiser):
             for trn_batch in trn_batches:
                 inp_trn_t_b = inp_trn_t[trn_batch]
                 tgt_trn_t_b = tgt_trn_t[trn_batch]
+
+                # Augmentation
+                if "flip" in self.augmentation:
+                    inp_trn_t_b, tgt_trn_t_b = random_flips(inp_trn_t_b, tgt_trn_t_b)
+
                 out_trn: pt.Tensor = self.model(inp_trn_t_b)
 
                 loss_trn = loss_data_fn(out_trn, tgt_trn_t_b)
@@ -149,11 +158,15 @@ class Supervised(Denoiser):
                 if not accum_grads:
                     fix_invalid_gradient_values(self.model)
                     optim.step()
+                    if sched is not None:
+                        sched.step()
                     optim.zero_grad()
 
             if accum_grads:
                 fix_invalid_gradient_values(self.model)
                 optim.step()
+                if sched is not None:
+                    sched.step()
                 optim.zero_grad()
 
             losses["trn"].append(loss_val_trn)
