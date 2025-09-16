@@ -88,7 +88,8 @@ The supervised denoiser is trained using pairs of noisy and clean images. It lea
 
 ```python
 denoiser_sup = ad.Supervised(model=net_params, reg_val=REG_TV_VAL)
-denoiser_sup.train(imgs_noisy, img_orig, epochs=EPOCHS, tst_inds=tst_inds)
+sup_data = denoiser_sup.prepare_data(imgs_noisy, img_orig, num_tst_ratio=NUM_IMGS_TST / NUM_IMGS_TOT)
+denoiser_sup.train(*sup_data, epochs=EPOCHS)
 ```
 
 ### Noise2Void (N2V)
@@ -112,8 +113,14 @@ denoiser_n2n.train(*n2n_data, epochs=EPOCHS)
 
 #### Batched processing
 
-N2N supports batched processing (both during training and inference). This is usually required for large datasets, where they cannot fully fit into GPU memory.
+N2N and Supervised support batched processing (both during training and inference). This is usually required for large datasets, where they cannot fully fit into GPU memory.
 The batch size is selected through the `batch_size` argument when N2N is initialized.
+
+```Python
+denoiser_sup = ad.Supervised(model=net_params, reg_val=REG_TV_VAL, batch_size=16)
+```
+
+and
 
 ```Python
 denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL, batch_size=16)
@@ -121,7 +128,13 @@ denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL, batch_size=16)
 
 #### Data augmentation
 
-N2N also supports data augmentation in the form of image and volume flips. This could be used to virtually increase the data size during training.
+N2N and Supervised also support data augmentation in the form of image and volume flips. This could be used to virtually increase the data size during training.
+
+```Python
+denoiser_sup = ad.Supervised(model=net_params, reg_val=REG_TV_VAL, augmentation="flip")
+```
+
+and
 
 ```Python
 denoiser_n2n = ad.N2N(model=net_params, reg_val=REG_TV_VAL, augmentation="flip")
@@ -146,8 +159,10 @@ Inference is the process of using the trained models to denoise new images. The 
 ### Supervised Denoiser Inference
 
 ```python
-den_sup = denoiser_sup.infer(imgs_noisy).mean(0)
+den_sup = denoiser_sup.infer(sup_data[0]).mean(0)
 ```
+!!! note "Inference input"
+    The output of the `prepare_data` function is also preferred for the inference of Supervised, even though the noisy images should still work for the foreseeable future.
 
 ### Noise2Void (N2V) Inference
 

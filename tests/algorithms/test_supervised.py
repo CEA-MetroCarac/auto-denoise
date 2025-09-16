@@ -14,13 +14,33 @@ def supervised_algo():
     return supervised
 
 
-def test_supervised_train(supervised_algo):
+def test_supervised_train_selfsimilar(supervised_algo):
     """Test the train method of the Supervised class."""
     inp = np.random.rand(10, 10, 10)
     tgt = np.random.rand(10, 10, 10)
     epochs = 1
+    sup_data = supervised_algo.prepare_data(inp, tgt, num_tst_ratio=2 / 10, strategy="self-similar")
+    losses = supervised_algo.train(*sup_data, epochs)
+    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs)
+    assert "loss_trn" in losses
+    assert "loss_tst" in losses
+    assert "loss_tst_sbi" in losses
+
     tst_inds = [0, 1]
-    losses = supervised_algo.train(inp, tgt, epochs, tst_inds)
+    losses = supervised_algo.train(*sup_data[:2], tst_inds, epochs)
+    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs)
+    assert "loss_trn" in losses
+    assert "loss_tst" in losses
+    assert "loss_tst_sbi" in losses
+
+
+def test_supervised_train_pixelmask(supervised_algo):
+    """Test the train method of the Supervised class."""
+    inp = np.random.rand(10, 10, 10)
+    tgt = np.random.rand(10, 10, 10)
+    epochs = 1
+    sup_data = supervised_algo.prepare_data(inp, tgt, strategy="pixel-mask")
+    losses = supervised_algo.train(*sup_data, epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
