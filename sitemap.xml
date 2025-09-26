@@ -2,90 +2,114 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/changelog/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/code_of_conduct/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/contributing/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/license/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/SUMMARY/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/</loc>
-         <lastmod>2025-05-06</lastmod>
-    </url>
-    <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/cli/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/debug/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/losses/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/deep_image_prior/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/denoiser/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/noise2noise/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/noise2void/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/algorithms/supervised/</loc>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/config/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/dncnn/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/io/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/msd/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/param_utils/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/resnet/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/reference/autoden/models/unet/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
-         <loc>https://CEA-MetroCarac.github.io/auto-denoise/tutorials/denoising/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/tutorials/denoising_imgs/</loc>
+         <lastmod>2025-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://CEA-MetroCarac.github.io/auto-denoise/tutorials/denoising_spectra/</loc>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/tutorials/models_io/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
     <url>
          <loc>https://CEA-MetroCarac.github.io/auto-denoise/tutorials/noise2inverse/</loc>
-         <lastmod>2025-05-06</lastmod>
+         <lastmod>2025-09-26</lastmod>
     </url>
 </urlset>

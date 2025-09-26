@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://CEA-MetroCarac.github.io/auto-denoise/tutorials/denoising/">
+        <link rel="canonical" href="https://CEA-MetroCarac.github.io/auto-denoise/tutorials/denoising_spectra/">
       
       
-        <link rel="prev" href="../../license/">
+        <link rel="prev" href="../noise2inverse/">
       
       
-        <link rel="next" href="../noise2inverse/">
+        <link rel="next" href="../models_io/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -24,7 +24,7 @@
     
     
       
-        <title>Denoising images - Auto-Denoise</title>
+        <title>Noise2Noise for spectra - Auto-Denoise</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#denoising-images" class="md-skip">
+        <a href="#denoising-spectra-using-noise2noise" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Denoising images
+              Noise2Noise for spectra
             
           </span>
         </div>
@@ -261,7 +261,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../denoising_imgs/" class="md-tabs__link">
           
   
   
@@ -522,6 +522,8 @@
       
         
       
+        
+      
     
     
     
@@ -565,6 +567,52 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../denoising_imgs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Denoising images & volumes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../noise2inverse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Noise2Inverse
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -582,7 +630,7 @@
   
   
   <span class="md-ellipsis">
-    Denoising images
+    Noise2Noise for spectra
     
   </span>
   
@@ -595,7 +643,7 @@
   
   
   <span class="md-ellipsis">
-    Denoising images
+    Noise2Noise for spectra
     
   </span>
   
@@ -627,46 +675,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#training-the-denoisers" class="md-nav__link">
+  <a href="#training-the-noise2noise-denoiser" class="md-nav__link">
     <span class="md-ellipsis">
-      Training the Denoisers
+      Training the Noise2Noise Denoiser
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Training the Denoisers">
+    <nav class="md-nav" aria-label="Training the Noise2Noise Denoiser">
       <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#supervised-denoiser" class="md-nav__link">
-    <span class="md-ellipsis">
-      Supervised Denoiser
-    </span>
-  </a>
-  
-</li>
         
           <li class="md-nav__item">
   <a href="#noise2noise-n2n" class="md-nav__link">
     <span class="md-ellipsis">
       Noise2Noise (N2N)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2void-n2v" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Void (N2V)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deep-image-prior-dip" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deep Image Prior (DIP)
     </span>
   </a>
   
@@ -684,48 +705,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Performing Inference">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#supervised-denoiser-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Supervised Denoiser Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2noise-n2n-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Noise (N2N) Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2void-n2v-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Void (N2V) Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deep-image-prior-dip-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deep Image Prior (DIP) Inference
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -734,6 +713,21 @@
       Visualizing the Results
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Visualizing the Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#zooming-into-specific-energy-ranges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Zooming into Specific Energy Ranges
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -750,29 +744,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../noise2inverse/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Noise2Inverse
-    
-  </span>
-  
-
-      </a>
     </li>
   
 
@@ -976,9 +947,42 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/autoden/algorithms/" class="md-nav__link">
+    
+    
+      
         
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_1_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/autoden/algorithms/" class="md-nav__link ">
+              
   
   
   <span class="md-ellipsis">
@@ -987,7 +991,142 @@
   </span>
   
 
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_1_1_2" id="__nav_3_1_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_1_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> algorithms
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/deep_image_prior/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> deep_image_prior
+    
+  </span>
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/denoiser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> denoiser
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/noise2noise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> noise2noise
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/noise2void/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> noise2void
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/supervised/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> supervised
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -1464,46 +1603,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#training-the-denoisers" class="md-nav__link">
+  <a href="#training-the-noise2noise-denoiser" class="md-nav__link">
     <span class="md-ellipsis">
-      Training the Denoisers
+      Training the Noise2Noise Denoiser
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Training the Denoisers">
+    <nav class="md-nav" aria-label="Training the Noise2Noise Denoiser">
       <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#supervised-denoiser" class="md-nav__link">
-    <span class="md-ellipsis">
-      Supervised Denoiser
-    </span>
-  </a>
-  
-</li>
         
           <li class="md-nav__item">
   <a href="#noise2noise-n2n" class="md-nav__link">
     <span class="md-ellipsis">
       Noise2Noise (N2N)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2void-n2v" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Void (N2V)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deep-image-prior-dip" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deep Image Prior (DIP)
     </span>
   </a>
   
@@ -1521,48 +1633,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Performing Inference">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#supervised-denoiser-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Supervised Denoiser Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2noise-n2n-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Noise (N2N) Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#noise2void-n2v-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Noise2Void (N2V) Inference
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deep-image-prior-dip-inference" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deep Image Prior (DIP) Inference
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -1571,6 +1641,21 @@
       Visualizing the Results
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Visualizing the Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#zooming-into-specific-energy-ranges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Zooming into Specific Energy Ranges
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1599,7 +1684,7 @@
 
 
   
-    <a href="https://github.com/CEA-MetroCarac/auto-denoise/edit/main/docs/tutorials/denoising.md" title="Edit this page" class="md-content__button md-icon">
+    <a href="https://github.com/CEA-MetroCarac/auto-denoise/edit/main/docs/tutorials/denoising_spectra.md" title="Edit this page" class="md-content__button md-icon">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1608,136 +1693,107 @@
     
       
     
-    <a href="https://github.com/CEA-MetroCarac/auto-denoise/raw/main/docs/tutorials/denoising.md" title="View source of this page" class="md-content__button md-icon">
+    <a href="https://github.com/CEA-MetroCarac/auto-denoise/raw/main/docs/tutorials/denoising_spectra.md" title="View source of this page" class="md-content__button md-icon">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
     </a>
   
 
 
-<h1 id="denoising-images">Denoising Images<a class="headerlink" href="#denoising-images" title="Permanent link">&para;</a></h1>
-<p>Auto-Denoise (autoden) provides implementations for a variety of unsupervised and self-supervised Convolutional Neural Network (CNN) denoising methods. This tutorial will guide you through setting up the data, training different denoisers, performing inference, and visualizing the results.</p>
+<h1 id="denoising-spectra-using-noise2noise">Denoising Spectra using Noise2Noise<a class="headerlink" href="#denoising-spectra-using-noise2noise" title="Permanent link">&para;</a></h1>
+<p>Auto-Denoise (autoden) provides implementations for a variety of unsupervised and self-supervised Convolutional Neural Network (CNN) denoising methods. This tutorial will guide you through setting up the data, training the Noise2Noise (N2N) denoiser, performing inference, and visualizing the results using X-ray fluorescence (XRF) spectral data.</p>
+<p><strong>The main idea of this tutorial is to show how we can predict higher quality spectra from shorter acquisitions.</strong>
+In particular, we present the case of a long 3.2 seconds XRF acquisition, obtained by accumulating 32 shorter exposures of 0.1 seconds each. Here, we show that we can obtain accurate spectra with only 4 of those 0.1 seconds acquisitions, thus reducing measurement time and deposited dose by 8 times.</p>
 <h2 id="setting-up-the-data">Setting Up the Data<a class="headerlink" href="#setting-up-the-data" title="Permanent link">&para;</a></h2>
-<p>First, we need to set up the data to be used for training and testing the denoisers. We will use the <code>skimage</code> library to generate a noisy image and create multiple noisy versions of it.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<p>First, we need to set up the data to be used for training and testing the denoiser. We will use the <code>pandas</code> library to load the XRF spectral data from the provided CSV file.</p>
+<p><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">skimage.color</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">skc</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">skimage.data</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">skd</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">skimage.transform</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">skt</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NDArray</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm.auto</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">autoden</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ad</span>
 
-<span class="n">USE_CAMERA_MAN</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">NUM_IMGS_TRN</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="n">NUM_IMGS_TST</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="n">NUM_IMGS_TOT</span> <span class="o">=</span> <span class="n">NUM_IMGS_TRN</span> <span class="o">+</span> <span class="n">NUM_IMGS_TST</span>
+<span class="c1"># Load the XRF spectral data from a CSV file</span>
+<span class="n">xrf_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;05_xrf_spectra.csv&quot;</span><span class="p">)</span>
 
-<span class="n">EPOCHS</span> <span class="o">=</span> <span class="mi">1024</span>
-<span class="n">REG_TV_VAL</span> <span class="o">=</span> <span class="mf">1e-7</span>
+<span class="c1"># Extract the energy values and count values</span>
+<span class="n">energies_keV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">xrf_data</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+<span class="n">counts</span> <span class="o">=</span> <span class="n">xrf_data</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
-<span class="k">if</span> <span class="n">USE_CAMERA_MAN</span><span class="p">:</span>
-    <span class="n">img_orig</span> <span class="o">=</span> <span class="n">skd</span><span class="o">.</span><span class="n">camera</span><span class="p">()</span>
-    <span class="n">img_orig</span> <span class="o">=</span> <span class="n">skt</span><span class="o">.</span><span class="n">downscale_local_mean</span><span class="p">(</span><span class="n">img_orig</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
-<span class="k">else</span><span class="p">:</span>
-    <span class="n">img_orig</span> <span class="o">=</span> <span class="n">skd</span><span class="o">.</span><span class="n">cat</span><span class="p">()</span>
-    <span class="n">img_orig</span> <span class="o">=</span> <span class="n">skc</span><span class="o">.</span><span class="n">rgb2gray</span><span class="p">(</span><span class="n">img_orig</span><span class="p">)</span>
-    <span class="n">img_orig</span> <span class="o">*=</span> <span class="mi">255</span> <span class="o">/</span> <span class="n">img_orig</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
-
-<span class="n">imgs_noisy</span><span class="p">:</span> <span class="n">NDArray</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
-    <span class="p">[(</span><span class="n">img_orig</span> <span class="o">+</span> <span class="mi">20</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="o">*</span><span class="n">img_orig</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">NUM_IMGS_TOT</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Create noisy images&quot;</span><span class="p">)],</span>
-    <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">tst_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">NUM_IMGS_TRN</span><span class="p">,</span> <span class="n">NUM_IMGS_TOT</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Img orig -&gt; [</span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">], Img noisy -&gt; [</span><span class="si">{</span><span class="n">imgs_noisy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">imgs_noisy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Img shape: </span><span class="si">{</span><span class="n">img_orig</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Plot the original spectra</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">,</span> <span class="n">counts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Spectrum #1&quot;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">,</span> <span class="n">counts</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Mean of spectra&quot;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">energies_keV</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Training vs testing images</p>
-<p>Certain algorithms require to allocate a certain number of input images to the test set.
-This set is used to verify the model's training convergence, and to select the most appropriate epoch.
-The variable <code>tst_inds</code> serves this purpose, by containing the indexes of the images to use for testing.</p>
-<p>The algorithms that do not use this variable, will randomly select a certain fixed number of pixels as leave-out set.</p>
-</div>
-<h2 id="training-the-denoisers">Training the Denoisers<a class="headerlink" href="#training-the-denoisers" title="Permanent link">&para;</a></h2>
-<p>We will train four different denoisers: Supervised Denoiser, Noise2Noise (N2N), Noise2Void (N2V), and Deep Image Prior (DIP).
-We first define the type of model that we will want to use. In this case it will be a U-net [<a href="#ref.1">1</a>], with 16 features:
-<div class="highlight"><pre><span></span><code><span class="n">net_params</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">NetworkParamsUNet</span><span class="p">(</span><span class="n">n_features</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
-</code></pre></div></p>
-<p>The variable <code>net_params</code> only defines the type of architecture that we want. When passed to the denoising algorithms, they will use it to create and initialize a U-net model.
-Other pre-configured models are available: MS-D net [<a href="#ref.2">2</a>], DnCNN [<a href="#ref.3">3</a>], and a custom ResNet implementation [<a href="#ref.4">4</a>].</p>
-<h3 id="supervised-denoiser">Supervised Denoiser<a class="headerlink" href="#supervised-denoiser" title="Permanent link">&para;</a></h3>
-<p>The supervised denoiser is trained using pairs of noisy and clean images. It learns to map noisy images to their clean counterparts.</p>
-<div class="highlight"><pre><span></span><code><span class="n">denoiser_sup</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">Denoiser</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
-<span class="n">denoiser_sup</span><span class="o">.</span><span class="n">train_supervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">img_orig</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">,</span> <span class="n">tst_inds</span><span class="o">=</span><span class="n">tst_inds</span><span class="p">)</span>
+<img alt="Input data" src="../../images/n2n_spectra_data.png" /></p>
+<h2 id="training-the-noise2noise-denoiser">Training the Noise2Noise Denoiser<a class="headerlink" href="#training-the-noise2noise-denoiser" title="Permanent link">&para;</a></h2>
+<p>We will train the Noise2Noise (N2N) denoiser using the XRF spectral data. We first define the type of model that we will want to use. In this case, it will be a DnCNN [<a href="#ref.1">1</a>], with 4 features and 6 layers:</p>
+<div class="highlight"><pre><span></span><code><span class="n">model</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">NetworkParamsDnCNN</span><span class="p">(</span><span class="n">n_dims</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_features</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">n_layers</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span><span class="o">.</span><span class="n">get_model</span><span class="p">()</span>
 </code></pre></div>
+<p>This model is very small for CNN model standards (only 256 parameters!), as the data is quite simple, and we do not want the model to overfit the data.</p>
 <h3 id="noise2noise-n2n">Noise2Noise (N2N)<a class="headerlink" href="#noise2noise-n2n" title="Permanent link">&para;</a></h3>
-<p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [<a href="#ref.5">5</a>]. It learns to map one noisy image to another noisy image of the same object.</p>
-<div class="highlight"><pre><span></span><code><span class="n">denoiser_n2n</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2N</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
-<span class="n">denoiser_n2n</span><span class="o">.</span><span class="n">train_selfsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">)</span>
+<p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [<a href="#ref.2">2</a>]. It learns to map one noisy image to another noisy image of the same object. The <code>prepare_data</code> function is used to organize the data in such a way that the algorithm can handle it correctly.</p>
+<p><div class="highlight"><pre><span></span><code><span class="n">n2n</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2N</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="n">n2n_data</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">prepare_data</span><span class="p">(</span><span class="n">counts</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span>
+<span class="n">_</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="o">*</span><span class="n">n2n_data</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">lower_limit</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">learning_rate</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span> <span class="n">restarts</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="noise2void-n2v">Noise2Void (N2V)<a class="headerlink" href="#noise2void-n2v" title="Permanent link">&para;</a></h3>
-<p>Noise2Void is a self-supervised denoising method that can work with a single noisy image [<a href="#ref.6">6</a>]. This implementation can also work with structured noise [<a href="#ref.7">7</a>]. It applies randomly generated masks to the images and learns to predict the masked pixels.</p>
-<div class="highlight"><pre><span></span><code><span class="n">denoiser_n2v</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2V</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
-<span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">train_selfsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">,</span> <span class="n">tst_inds</span><span class="o">=</span><span class="n">tst_inds</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="deep-image-prior-dip">Deep Image Prior (DIP)<a class="headerlink" href="#deep-image-prior-dip" title="Permanent link">&para;</a></h3>
-<p>Deep Image Prior is an unsupervised denoising method that can also work with a single image [<a href="#ref.8">8</a>]. It uses the prior knowledge embedded in the network architecture to denoise the image.</p>
-<div class="highlight"><pre><span></span><code><span class="n">denoiser_dip</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">DIP</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
-<span class="n">inp_dip</span> <span class="o">=</span> <span class="n">denoiser_dip</span><span class="o">.</span><span class="n">train_unsupervised</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">)</span>
-</code></pre></div>
+<img alt="learning losses" src="../../images/n2n_spectra_losses.png" /></p>
+<p>Here, we impose a lower limit of 0.0, as we know that the detected photons cannot be negative. We also set a high initial learning rate, to speed up the convergence (after all, we're starting from a completely untrained /  randomly initialized network). However, we then progressively reduce the learning using a cosine annealing scheduler, through the <code>restarts=1</code> argument. This value would allow us to do multiple waves of high-to-low learning rate variations for a number of restarts &gt; 1, but that is unnecessary in this instance.</p>
 <h2 id="performing-inference">Performing Inference<a class="headerlink" href="#performing-inference" title="Permanent link">&para;</a></h2>
-<p>Inference is the process of using the trained models to denoise new images. The <code>infer</code> method takes the noisy images as input and outputs the denoised images.</p>
-<h3 id="supervised-denoiser-inference">Supervised Denoiser Inference<a class="headerlink" href="#supervised-denoiser-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_sup</span> <span class="o">=</span> <span class="n">denoiser_sup</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="noise2noise-n2n-inference">Noise2Noise (N2N) Inference<a class="headerlink" href="#noise2noise-n2n-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_n2n</span> <span class="o">=</span> <span class="n">denoiser_n2n</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="noise2void-n2v-inference">Noise2Void (N2V) Inference<a class="headerlink" href="#noise2void-n2v-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_n2v</span> <span class="o">=</span> <span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="deep-image-prior-dip-inference">Deep Image Prior (DIP) Inference<a class="headerlink" href="#deep-image-prior-dip-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_dip</span> <span class="o">=</span> <span class="n">denoiser_dip</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">inp_dip</span><span class="p">)</span>
+<p>Inference is the process of using the trained model to denoise new spectra. The <code>infer</code> method takes the noisy spectra as input and outputs the denoised spectra.</p>
+<div class="highlight"><pre><span></span><code><span class="n">pred_counts</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">n2n_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 </code></pre></div>
 <h2 id="visualizing-the-results">Visualizing the Results<a class="headerlink" href="#visualizing-the-results" title="Permanent link">&para;</a></h2>
-<p>Finally, we will visualize the results of the different denoisers.</p>
+<p>Finally, we visualize the results of the Noise2Noise denoiser.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="image" name="__tabbed_1" type="radio" /><input id="code" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="image">Image</label><label for="code">Code</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p><img alt="results image" src="../../images/denoise_imgs_results.png" /></p>
+<p><img alt="results image" src="../../images/n2n_spectra_result.png" /></p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img_orig</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original image&quot;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Noisy image&quot;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">den_sup</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Denoised supervised&quot;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">den_n2n</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Denoised N2N&quot;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">den_n2v</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Denoised N2V&quot;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">den_dip</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Denoised DIP&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">,</span> <span class="n">counts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Spectrum #1&quot;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">,</span> <span class="n">counts</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Mean of spectra&quot;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">,</span> <span class="n">pred_counts</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Predicted spectrum&quot;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">energies_keV</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+<h3 id="zooming-into-specific-energy-ranges">Zooming into Specific Energy Ranges<a class="headerlink" href="#zooming-into-specific-energy-ranges" title="Permanent link">&para;</a></h3>
+<p>We can also zoom into specific energy ranges to better visualize the denoising results.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="image_1" name="__tabbed_2" type="radio" /><input id="code_1" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="image_1">Image</label><label for="code_1">Code</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p><img alt="results image" src="../../images/n2n_spectra_details.png" /></p>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><span class="n">ranges</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">7.75</span><span class="p">,</span> <span class="mf">9.75</span><span class="p">),</span> <span class="p">(</span><span class="mf">15.0</span><span class="p">,</span> <span class="mf">18.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">15.2</span><span class="p">,</span> <span class="mf">16.25</span><span class="p">))</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ranges</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ranges</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.5</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="p">(</span><span class="n">e_s</span><span class="p">,</span> <span class="n">e_e</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranges</span><span class="p">):</span>
+    <span class="n">bin_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">energies_keV</span> <span class="o">-</span> <span class="n">e_s</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="n">bin_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">energies_keV</span> <span class="o">-</span> <span class="n">e_e</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">[</span><span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">],</span> <span class="n">counts</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">],</span> <span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Spectrum #1&quot;</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">[</span><span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">],</span> <span class="n">counts</span><span class="p">[:,</span> <span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Mean of spectra&quot;</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">energies_keV</span><span class="p">[</span><span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">],</span> <span class="n">pred_counts</span><span class="p">[</span><span class="n">bin_s</span><span class="p">:</span><span class="n">bin_e</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Predicted spectrum&quot;</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">e_s</span><span class="p">,</span> <span class="n">e_e</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+    <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
 </code></pre></div>
 </div>
 </div>
 </div>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ol>
-<li><a id="ref.1"></a> O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional Networks for Biomedical Image Segmentation,” in Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015, 2015, pp. 234–241. doi: 10.1007/978-3-319-24574-4_28.</li>
-<li><a id="ref.2"></a> D. M. Pelt and J. A. Sethian, “A mixed-scale dense convolutional neural network for image analysis,” Proceedings of the National Academy of Sciences, vol. 115, no. 2, pp. 254–259, 2018, doi: 10.1073/pnas.1715832114.</li>
-<li><a id="ref.3"></a> K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang, “Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,” IEEE Transactions on Image Processing, vol. 26, no. 7, pp. 3142–3155, Jul. 2017, doi: 10.1109/TIP.2017.2662206.</li>
-<li><a id="ref.4"></a> K. He, X. Zhang, S. Ren, and J. Sun, “Deep Residual Learning for Image Recognition,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2016, pp. 770–778. doi: 10.1109/CVPR.2016.90.</li>
-<li><a id="ref.5"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. <a href="https://proceedings.mlr.press/v80/lehtinen18a.html">https://proceedings.mlr.press/v80/lehtinen18a.html</a>.</li>
-<li><a id="ref.6"></a> A. Krull, T.-O. Buchholz, and F. Jug, “Noise2Void - Learning Denoising From Single Noisy Images,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), IEEE, Jun. 2019, pp. 2124–2132. doi: <a href="https://doi.org/10.1109/CVPR.2019.00223">10.1109/CVPR.2019.00223</a>.</li>
-<li><a id="ref.7"></a> C. Broaddus, A. Krull, M. Weigert, U. Schmidt, and G. Myers, “Removing Structured Noise with Self-Supervised Blind-Spot Networks,” in 2020 IEEE 17th International Symposium on Biomedical Imaging (ISBI), IEEE, Apr. 2020, pp. 159–163. doi: <a href="https://doi.org/10.1109/ISBI45749.2020.9098336">10.1109/ISBI45749.2020.9098336</a>.</li>
-<li><a id="ref.8"></a> V. Lempitsky, A. Vedaldi, and D. Ulyanov, “Deep Image Prior,” in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, IEEE, Jun. 2018, pp. 9446–9454. doi: <a href="https://doi.org/10.1109/CVPR.2018.00984">10.1109/CVPR.2018.00984</a>.</li>
+<li><a id="ref.1"></a> K. Zhang, W. Zuo, Y. Chen, D. Meng, and L. Zhang, “Beyond a Gaussian Denoiser: Residual Learning of Deep CNN for Image Denoising,” IEEE Transactions on Image Processing, vol. 26, no. 7, pp. 3142–3155, Jul. 2017, doi: 10.1109/TIP.2017.2662206.</li>
+<li><a id="ref.2"></a> J. Lehtinen et al., “Noise2Noise: Learning Image Restoration without Clean Data,” in Proceedings of the 35th International Conference on Machine Learning, J. Dy and A. Krause, Eds., in Proceedings of Machine Learning Research, vol. 80. PMLR, 2018, pp. 2965–2974. <a href="https://proceedings.mlr.press/v80/lehtinen18a.html">https://proceedings.mlr.press/v80/lehtinen18a.html</a>.</li>
 </ol>
 
 
@@ -1774,7 +1830,7 @@ Other pre-configured models are available: MS-D net [<a href="#ref.2">2</a>], Dn
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../license/" class="md-footer__link md-footer__link--prev" aria-label="Previous: License">
+          <a href="../noise2inverse/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Noise2Inverse">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1784,20 +1840,20 @@ Other pre-configured models are available: MS-D net [<a href="#ref.2">2</a>], Dn
                 Previous
               </span>
               <div class="md-ellipsis">
-                License
+                Noise2Inverse
               </div>
             </div>
           </a>
         
         
           
-          <a href="../noise2inverse/" class="md-footer__link md-footer__link--next" aria-label="Next: Noise2Inverse">
+          <a href="../models_io/" class="md-footer__link md-footer__link--next" aria-label="Next: Saving &amp; loading models">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Noise2Inverse
+                Saving & loading models
               </div>
             </div>
             <div class="md-footer__button md-icon">
