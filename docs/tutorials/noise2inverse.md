@@ -1,4 +1,4 @@
-# Tutorial: Using Auto-Denoise (autoden) for Noise2Inverse (Self-Supervised Denoising)
+# Noise2Inverse (Self-Supervised Denoising)
 
 This tutorial demonstrates how to implement Noise2Inverse (self-supervised denoising) using the Auto-Denoise (autoden) library. Noise2Inverse is a self-supervised deep convolutional denoising method for tomography, as described in [1].
 This tutorial is a walk-through of example number 03, from the `examples` directory.
