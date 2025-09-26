@@ -20,7 +20,9 @@ from autoden.models.param_utils import fix_invalid_gradient_values
 class DIP(Denoiser):
     """Deep image prior."""
 
-    def prepare_data(self, tgt: NDArray, num_tst_ratio: float = 0.2) -> tuple[NDArray, NDArray, NDArray]:
+    def prepare_data(
+        self, tgt: NDArray, num_tst_ratio: float = 0.2, average_redundant: bool = False
+    ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data.
 
@@ -32,6 +34,9 @@ class DIP(Denoiser):
         num_tst_ratio : float, optional
             The ratio of the test set size to the total dataset size.
             Default is 0.2.
+        average_redundant : bool, optional
+            If True, average redundant realizations in the target array to match the
+            expected number of dimensions. Default is False.
 
         Returns
         -------
@@ -51,7 +56,7 @@ class DIP(Denoiser):
         """
         if tgt.ndim < self.n_dims:
             raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {tgt.shape}")
-        if tgt.ndim > self.n_dims:
+        if average_redundant and tgt.ndim > self.n_dims:
             tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -self.n_dims)))
 
         inp = np.random.normal(size=tgt.shape[-self.n_dims :], scale=0.25).astype(tgt.dtype)
@@ -164,6 +169,8 @@ class DIP(Denoiser):
             # Train
             optim.zero_grad()
             out_t: pt.Tensor = self.model(inp_t)
+            if out_t.shape[0] == 1 and tgt_t.shape[0] > 1:
+                out_t = pt.tile(out_t, [tgt_t.shape[0]] + [1] * (tgt_t.ndim - 1))
 
             out_trn = out_t[mask_trn_t].flatten()
             loss_trn = loss_data_fn(out_trn, tgt_trn)
