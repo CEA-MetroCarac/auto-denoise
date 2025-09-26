@@ -143,10 +143,12 @@ class N2V(Denoiser):
         lower_limit: float | NDArray | None = None,
         loss_track_type: str = "tst",
     ) -> dict[str, NDArray]:
+        if epochs < 1:
+            raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
+
         losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
-        losses_trn = []
-        losses_tst = []
-        losses_tst_sbi = []  # Scale and bias invariant loss
+        # sbi stands for: Scale and bias invariant loss
+
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
         optim = create_optimizer(self.model, algo=algo)
 
