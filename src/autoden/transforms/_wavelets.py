@@ -11,9 +11,8 @@ The functions support 1D, 2D, and 3D signals and provide options for different b
 """
 
 from collections.abc import Sequence
-from itertools import product
 from functools import partial
-from typing import Optional, Union
+from itertools import product
 
 import ptwt
 import pywt
@@ -124,11 +123,11 @@ def idwtn(coeffs: ptwt.WaveletCoeffNd, wavelet: str, ndims: int) -> pt.Tensor:
 
 def _swt_padn(
     data: pt.Tensor,
-    wavelet: Union[Wavelet, str],
+    wavelet: Wavelet | str,
     dilation: int,
     *,
-    ndims: Optional[int] = None,
-    mode: Optional[BoundaryMode] = None,
+    ndims: int | None = None,
+    mode: BoundaryMode | None = None,
 ) -> pt.Tensor:
     """Pad data for the n-dimensional SWT.
 
@@ -176,7 +175,7 @@ def _swt_padn(
 def _preprocess_tensor_decnd(
     data: pt.Tensor,
     ndims: int,
-) -> tuple[pt.Tensor, Union[list[int], None]]:
+) -> tuple[pt.Tensor, list[int] | None]:
     """Preprocess input tensor dimensions.
 
     Parameters
@@ -211,10 +210,10 @@ def _preprocess_tensor_decnd(
 
 def swtn(
     data: pt.Tensor,
-    wavelet: Union[Wavelet, str],
-    level: Optional[int] = None,
+    wavelet: Wavelet | str,
+    level: int | None = None,
     axes: Sequence[int] | int = -1,
-    mode: Optional[BoundaryMode] = None,
+    mode: BoundaryMode | None = None,
 ) -> WaveletCoeffNd:
     """Compute a multilevel nd stationary wavelet transform.
 
