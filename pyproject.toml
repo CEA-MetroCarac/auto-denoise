@@ -35,6 +35,7 @@ dependencies = [
     "imageio",
     "scikit-image",
     "torch",
+    "ptwt",
 ]
 
 [project.optional-dependencies]
