@@ -35,7 +35,7 @@ dependencies = [
     "imageio",
     "scikit-image",
     "torch",
-    "ptwt",
+    "ptwt<1.0",  # This is needed for the moment, as we still support Python 3.10
 ]
 
 [project.optional-dependencies]
