@@ -36,7 +36,7 @@ from ptwt.conv_transform_3 import _construct_3d_filt
 
 
 def dwtn(
-    signal: pt.Tensor, wavelet: str, level: int, ndims: int, mode: ptwt.constants.BoundaryMode = "constant"
+    signal: pt.Tensor, wavelet: str, level: int, axes: Sequence[int] | int = -1, mode: ptwt.constants.BoundaryMode = "constant"
 ) -> ptwt.WaveletCoeffNd:
     """
     Perform the discrete wavelet transform (DWT) on the given signal.
@@ -44,58 +44,66 @@ def dwtn(
     Parameters
     ----------
     signal : pt.Tensor
-        The input signal to be transformed. The structure of `signal` depends on the value of `ndims`.
+        The input signal to be transformed. The structure of `signal` depends on the value of `axes`.
     wavelet : str
         The wavelet to use for the DWT. This should be a string that corresponds to a wavelet available in PyWavelets.
     level : int
         The number of decomposition levels to perform.
-    ndims : int
-        The number of dimensions of the input data. This determines the structure of `signal` and the type of DWT to perform.
+    axes : Sequence[int] | int, optional
+        The axes of the input data to perform the DWT on. If an integer is provided, it is treated as a single axis. Default is -1.
     mode : ptwt.constants.BoundaryMode, optional
         The type of extension to use for the signal at the boundaries. Default is "constant".
 
     Returns
     -------
     ptwt.WaveletCoeffNd
-        The wavelet coefficients after performing the DWT. The structure of the output depends on the value of `ndims`.
+        The wavelet coefficients after performing the DWT. The structure of the output depends on the value of `axes`.
 
     Notes
     -----
-    - For `ndims=1`, the output is a list of arrays or dictionaries. The first element is the approximation coefficients, and the subsequent elements are dictionaries with a key 'd' that maps to the detail coefficients.
-    - For `ndims=2`, the output is a list where the first element is the approximation coefficients, and the subsequent elements are dictionaries with keys 'da', 'ad', and 'dd' that map to the detail coefficients.
-    - For `ndims=3`, the output is a list of arrays or dictionaries suitable for the `wavedec3` function in PyWavelets.
+    - For `len(axes)=1`, the output is a list of arrays or dictionaries. The first element is the approximation coefficients, and the subsequent elements are dictionaries with a key 'd' that maps to the detail coefficients.
+    - For `len(axes)=2`, the output is a list where the first element is the approximation coefficients, and the subsequent elements are dictionaries with keys 'da', 'ad', and 'dd' that map to the detail coefficients.
+    - For `len(axes)=3`, the output is a list of arrays or dictionaries suitable for the `wavedec3` function in PyWavelets.
 
     Raises
     ------
     ValueError
-        If `ndims` is not 1, 2, or 3.
+        If `len(axes)` is not 1, 2, or 3.
     """
+    if isinstance(axes, int):
+        axes = (axes,)
+    axes = tuple(axes)
+
+    ndims = len(axes)
+    if ndims not in (1, 2, 3):
+        raise ValueError("Only 1D, 2D, and 3D transforms are implemented.")
+
     match (ndims):
         case 1:
-            cs1 = ptwt.wavedec(signal, wavelet=wavelet, level=level, mode=mode)
+            cs1 = ptwt.wavedec(signal, wavelet=wavelet, level=level, mode=mode, axis=axes[0])
             return [cs1[0]] + [dict(d=c) for c in cs1[1:]]
         case 2:
-            cs2 = ptwt.wavedec2(signal, wavelet=wavelet, level=level, mode=mode)
+            cs2 = ptwt.wavedec2(signal, wavelet=wavelet, level=level, mode=mode, axes=axes)
             # return [cs2[0]] + [dict(ad=c[0], da=c[1], dd=c[2]) for c in cs2[1:3]]
             return [cs2[0]] + [dict(da=c[0], ad=c[1], dd=c[2]) for c in cs2[1:3]]
         case 3:
-            return ptwt.wavedec3(signal, wavelet=wavelet, level=level, mode=mode)
+            return ptwt.wavedec3(signal, wavelet=wavelet, level=level, mode=mode, axes=axes)
         case _:
             raise ValueError(f"Unsupported number of dimensions: {ndims}. Only 1D, 2D, and 3D are supported.")
 
 
-def idwtn(coeffs: ptwt.WaveletCoeffNd, wavelet: str, ndims: int) -> pt.Tensor:
+def idwtn(coeffs: ptwt.WaveletCoeffNd, wavelet: str, axes: Sequence[int] | int = -1) -> pt.Tensor:
     """
     Perform the inverse discrete wavelet transform (IDWT) on the given coefficients.
 
     Parameters
     ----------
     coeffs : WaveletCoeffNd
-        The wavelet coefficients to be transformed. The structure of `coeffs` depends on the value of `ndims`.
+        The wavelet coefficients to be transformed. The structure of `coeffs` depends on the value of `axes`.
     wavelet : str
         The wavelet to use for the IDWT. This should be a string that corresponds to a wavelet available in PyWavelets.
-    ndims : int
-        The number of dimensions of the input data. This determines the structure of `coeffs` and the type of IDWT to perform.
+    axes : Sequence[int] | int, optional
+        The axes of the input data to perform the IDWT on. If an integer is provided, it is treated as a single axis. Default is -1.
 
     Returns
     -------
@@ -104,20 +112,28 @@ def idwtn(coeffs: ptwt.WaveletCoeffNd, wavelet: str, ndims: int) -> pt.Tensor:
 
     Notes
     -----
-    - For `ndims=1`, `coeffs` should be a list of arrays or dictionaries. If the elements are dictionaries, they should have a key 'd' that maps to the detail coefficients.
-    - For `ndims=2`, `coeffs` should be a list where the first element is the approximation coefficients, and the subsequent elements are dictionaries with keys 'da', 'ad', and 'dd' that map to the detail coefficients.
-    - For `ndims=3`, `coeffs` should be a list of arrays or dictionaries suitable for the `waverec3` function in PyWavelets.
+    - For `len(axes)=1`, `coeffs` should be a list of arrays or dictionaries. If the elements are dictionaries, they should have a key 'd' that maps to the detail coefficients.
+    - For `len(axes)=2`, `coeffs` should be a list where the first element is the approximation coefficients, and the subsequent elements are dictionaries with keys 'da', 'ad', and 'dd' that map to the detail coefficients.
+    - For `len(axes)=3`, `coeffs` should be a list of arrays or dictionaries suitable for the `waverec3` function in PyWavelets.
     """
+    if isinstance(axes, int):
+        axes = (axes,)
+    axes = tuple(axes)
+
+    ndims = len(axes)
+    if ndims not in (1, 2, 3):
+        raise ValueError("Only 1D, 2D, and 3D transforms are implemented.")
+
     match (ndims):
         case 1:
             cs1 = [c['d'] if isinstance(c, dict) else c for c in coeffs]
-            return ptwt.waverec(cs1, wavelet=wavelet)
+            return ptwt.waverec(cs1, wavelet=wavelet, axis=axes[0])
         case 2:
             cs2 = [coeffs[0]] + [ptwt.WaveletCoeff2d(c[f] for f in ('da', 'ad', 'dd')) for c in coeffs[1:]]
             # cs2 = [coeffs[0]] + [WaveletCoeff2d(c[f] for f in ('ad', 'da', 'dd')) for c in coeffs[1:]]
-            return ptwt.waverec2(cs2, wavelet=wavelet)
+            return ptwt.waverec2(cs2, wavelet=wavelet, axes=axes)
         case 3:
-            return ptwt.waverec3(coeffs, wavelet=wavelet)
+            return ptwt.waverec3(coeffs, wavelet=wavelet, axes=axes)
         case _:
             raise ValueError(f"Unsupported number of dimensions: {ndims}. Only 1D, 2D, and 3D are supported.")
 

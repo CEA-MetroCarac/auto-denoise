@@ -100,7 +100,8 @@ def test_dwt(wavelet, level, dims):
         print(coeffs_pywt)
 
     # PyTorch IDWT
-    coeffs_torch = dwtn(signal_torch, wavelet=wavelet, level=level, ndims=len(dims))
+    axes = [*range(-len(dims), 0)]
+    coeffs_torch = dwtn(signal_torch, wavelet=wavelet, level=level, axes=axes)
 
     if debug:
         print(coeffs_torch)
@@ -147,7 +148,8 @@ def test_idwt(wavelet, level, dims):
         print(coeffs_torch)
 
     # PyTorch IDWT
-    recon_torch = idwtn(coeffs_torch, wavelet=wavelet, ndims=len(dims))
+    axes = [*range(-len(dims), 0)]
+    recon_torch = idwtn(coeffs_torch, wavelet=wavelet, axes=axes)
 
     # Compare
     _assert_reconstruction_close(recon_pywt, recon_torch)
