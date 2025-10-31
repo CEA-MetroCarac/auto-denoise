@@ -7,7 +7,7 @@ import torch as pt
 from torch.nn.functional import pad
 from torch.nn.modules.loss import _Loss
 
-from autoden.transforms._wavelets import swtn, wavelet_norm
+from autoden.transforms._wavelets import dwtn, swtn, wavelet_norm
 
 
 def _differentiate(inp: pt.Tensor, dim: int, position: str) -> pt.Tensor:
@@ -112,6 +112,66 @@ class LossTGV(LossTV):
             jac_val = pt.stack([d.abs() for d in diffdiffs], dim=0).sum(dim=0)
 
         loss_vals: pt.Tensor = self.lambda_val * (tv_val.sum(axes) + jac_val.sum(axes) / 4)
+
+        if self.reduction.lower() == "mean":
+            return loss_vals.mean()
+        elif self.reduction.lower() == "sum":
+            return loss_vals.sum()
+        else:
+            return loss_vals
+
+
+class LossDWTN(LossRegularizer):
+    """Multi-level n-dimensional discrete wavelet transform loss function."""
+
+    def __init__(
+        self,
+        lambda_val: float,
+        size_average=None,
+        reduce=None,
+        reduction: str = "mean",
+        isotropic: bool = False,
+        wavelet: str = "haar",
+        level: int = 2,
+        n_dims: int = 2,
+        min_approx: bool = True,
+        lvl_scale: bool = False,
+    ) -> None:
+        super().__init__(size_average, reduce, reduction)
+        self.wavelet = wavelet
+        self.lambda_val = lambda_val
+        self.isotropic = isotropic
+        self.level = level
+        self.n_dims = n_dims
+        self.min_approx = min_approx
+        self.lvl_scale = lvl_scale
+
+    def forward(self, img: pt.Tensor) -> pt.Tensor:
+        """Compute wavelet decomposition on current batch."""
+        _check_input_tensor(img, self.n_dims)
+        axes = list(range(-(self.n_dims + 1), 0))
+
+        coeffs = dwtn(img, wavelet=self.wavelet, level=self.level, axes=axes, mode="constant")
+        wl_norm = wavelet_norm(self.wavelet, level=self.level, ndims=self.n_dims, device=img.device, dtype=img.dtype)
+
+        if self.min_approx:
+            wl_val = [coeffs[0].abs().sum(axes)]
+        else:
+            wl_val = []
+
+        for ii_lvl, lvl_c in enumerate(coeffs[1:]):
+            coeff = pt.stack([c for _, c in lvl_c.items()], dim=0)
+
+            if self.isotropic:
+                wl_lvl_val = coeff.sum(dim=0).abs().sum(axes)
+            else:
+                wl_lvl_val = coeff.abs().sum(dim=0).sum(axes)
+
+            if self.lvl_scale:
+                wl_lvl_val = wl_lvl_val / wl_norm[ii_lvl]
+            wl_val.append(wl_lvl_val)
+
+        loss_vals: pt.Tensor = self.lambda_val * pt.stack(wl_val, dim=0).sum(dim=0) / ((self.level + self.min_approx) ** 0.5)
 
         if self.reduction.lower() == "mean":
             return loss_vals.mean()
