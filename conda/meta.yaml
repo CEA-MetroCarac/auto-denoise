@@ -26,9 +26,10 @@ requirements:
         - python {{ py_min_version }}
         # Dependencies as defined in environment.yaml
         # Some names might be different from pypi, so please curate that list manually
-        {% for dep in env_file['dependencies'] %}
+        {% for dep in env_file['dependencies'] if not dep == "torch" %}
         - {{ dep }}
         {% endfor %}
+        - pytorch
 
 about:
     home: {{ project['urls']['Homepage'] }}
