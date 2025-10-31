@@ -15,8 +15,9 @@ from functools import partial
 from itertools import product
 
 import ptwt
-import pywt
 import torch as pt
+from pywt import Wavelet as pywt_Wavelet
+from pywt._swt import swt_max_level
 from ptwt._util import (
     Wavelet,
     _as_wavelet,
@@ -208,6 +209,13 @@ def _preprocess_tensor_decnd(
     return data, ds
 
 
+def wavelet_norm(wavelet: str, level: int, ndims: int, device: pt.device, dtype: pt.dtype) -> pt.Tensor:
+    w = pywt_Wavelet(wavelet)
+    dec_lo = pt.tensor(w.dec_lo, device=device, dtype=dtype)
+    dec_lo_en = pt.linalg.vector_norm(dec_lo, ord=1)
+    return dec_lo_en ** (ndims * (pt.arange(level, 0, -1, device=device, dtype=dtype) - 1))
+
+
 def swtn(
     data: pt.Tensor,
     wavelet: Wavelet | str,
@@ -271,7 +279,7 @@ def swtn(
             raise ValueError("This should never happen!")
 
     if level is None:
-        level = pywt.swt_max_level(min(data.shape[-ndims:]))
+        level = swt_max_level(min(data.shape[-ndims:]))
 
     detail_names = ["".join(s) for s in product(("a", "d"), repeat=ndims)]
 

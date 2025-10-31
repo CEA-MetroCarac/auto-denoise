@@ -22,6 +22,7 @@ nav:
   - Denoising images & volumes: tutorials/denoising_imgs.md
   - Noise2Inverse: tutorials/noise2inverse.md
   - Noise2Noise for spectra: tutorials/denoising_spectra.md
+  - Regularization: tutorials/regularization.md
   - Saving & loading models: tutorials/models_io.md
 # defer to gen-files + literate-nav
 - API reference:
