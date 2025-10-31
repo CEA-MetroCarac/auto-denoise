@@ -134,7 +134,7 @@ class LossSWTN(LossRegularizer):
         isotropic: bool = True,
         level: int = 2,
         n_dims: int = 2,
-        min_approx: bool = False,
+        min_approx: bool = True,
     ) -> None:
         super().__init__(size_average, reduce, reduction)
         self.wavelet = wavelet

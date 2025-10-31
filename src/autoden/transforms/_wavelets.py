@@ -274,7 +274,6 @@ def swtn(
         level = pywt.swt_max_level(min(data.shape[-ndims:]))
 
     detail_names = ["".join(s) for s in product(("a", "d"), repeat=ndims)]
-    print(detail_names)
 
     result_lst: list[WaveletDetailDict] = []
     res_a = data
@@ -291,7 +290,7 @@ def swtn(
             case _:
                 raise ValueError("This should never happen!")
         res_a, *res_t = pt.split(res, 1, 1)
-        to_append: WaveletDetailDict = {f: r for f, r in zip(detail_names[1:], res_t)}
+        to_append: WaveletDetailDict = {f: r.squeeze(1) for f, r in zip(detail_names[1:], res_t)}
         result_lst.append(to_append)
 
     result_lst.reverse()
@@ -299,8 +298,8 @@ def swtn(
     result: WaveletCoeffNd = res_a, *result_lst
 
     if ds is not None:
-        _unfold_axes2 = partial(_unfold_axes, ds=ds, keep_no=ndims)
-        result = _map_result(result, _unfold_axes2)
+        _unfold_axes_n = partial(_unfold_axes, ds=ds, keep_no=ndims)
+        result = _map_result(result, _unfold_axes_n)
 
     if should_swap_axes:
         undo_swap_fn = partial(_undo_swap_axes, axes=axes)
