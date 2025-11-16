@@ -207,7 +207,7 @@ class N2V(Denoiser):
                     size_to_damage, device=inp_tst_t.device, dtype=inp_tst_t.dtype
                 )
 
-                out_tst = self.model(inp_tst_damaged)
+                out_tst: pt.Tensor = self.model(inp_tst_damaged)
                 out_to_check = out_tst[..., to_check[0], to_check[1]].flatten()
                 ref_to_check = inp_tst_t[..., to_check[0], to_check[1]].flatten()
 
