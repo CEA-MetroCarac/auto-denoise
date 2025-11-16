@@ -14,10 +14,12 @@ def supervised_algo():
     return supervised
 
 
-def test_supervised_train_selfsimilar(supervised_algo, epochs: int = 1):
+def test_supervised_train_selfsimilar(supervised_algo, epochs: int = 1, img_size: tuple[int, int] | None = None):
     """Test the train method of the Supervised class."""
-    inp = np.random.rand(10, 10, 10)
-    tgt = np.random.rand(10, 10, 10)
+    if img_size is None:
+        img_size = (10, 10)
+    inp = np.random.rand(10, *img_size)
+    tgt = np.random.rand(10, *img_size)
 
     sup_data = supervised_algo.prepare_data(inp, tgt, num_tst_ratio=2 / 10, strategy="self-similar")
     losses = supervised_algo.train(*sup_data, epochs)
@@ -34,10 +36,12 @@ def test_supervised_train_selfsimilar(supervised_algo, epochs: int = 1):
     assert "loss_tst_sbi" in losses
 
 
-def test_supervised_train_pixelmask(supervised_algo, epochs: int = 1):
+def test_supervised_train_pixelmask(supervised_algo, epochs: int = 1, img_size: tuple[int, int] | None = None):
     """Test the train method of the Supervised class."""
-    inp = np.random.rand(10, 10, 10)
-    tgt = np.random.rand(10, 10, 10)
+    if img_size is None:
+        img_size = (10, 10)
+    inp = np.random.rand(10, *img_size)
+    tgt = np.random.rand(10, *img_size)
 
     sup_data = supervised_algo.prepare_data(inp, tgt, strategy="pixel-mask")
     losses = supervised_algo.train(*sup_data, epochs)
@@ -53,7 +57,7 @@ def test_supervised_train_selfsimilar_benchmark(request: pytest.FixtureRequest, 
     except pytest.FixtureLookupError:
         pytest.skip("benchmark fixture not available")
 
-    benchmark(test_supervised_train_selfsimilar, supervised_algo, epochs=100)
+    benchmark(test_supervised_train_selfsimilar, supervised_algo, epochs=200, img_size=(32, 32))
 
 
 def test_supervised_train_pixelmask_benchmark(request: pytest.FixtureRequest, supervised_algo):
@@ -63,4 +67,4 @@ def test_supervised_train_pixelmask_benchmark(request: pytest.FixtureRequest, su
     except pytest.FixtureLookupError:
         pytest.skip("benchmark fixture not available")
 
-    benchmark(test_supervised_train_pixelmask, supervised_algo, epochs=100)
+    benchmark(test_supervised_train_pixelmask, supervised_algo, epochs=200, img_size=(32, 32))
