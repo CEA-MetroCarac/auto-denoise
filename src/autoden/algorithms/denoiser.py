@@ -390,12 +390,6 @@ class Denoiser(ABC):
         tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
-        # inp_tst_d = DatasetNumpy(dset_tst[0], device=self.device, n_dims=self.n_dims)
-        # tgt_tst_d = DatasetNumpy(dset_tst[1], device=self.device, n_dims=self.n_dims)
-        # tgt_tst_d_sbi = DatasetNumpy(
-        #     (dset_tst[1] - dset_tst[1].mean()) / (dset_tst[1].std() + 1e-5), device=self.device, n_dims=self.n_dims
-        # )
-
         dset_trn_d = DatasetsList((inp_trn_d, tgt_trn_d), augmentation=self.augmentation)
         num_trn_instances = len(dset_trn_d)
 
