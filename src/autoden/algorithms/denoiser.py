@@ -483,7 +483,7 @@ class Denoiser(ABC):
             raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
 
         losses = dict(trn=[], trn_data=[], tst=[], tst_sbi=[])
-        loss_data_fn = pt.nn.MSELoss(reduction="mean")
+        loss_data_fn = pt.nn.MSELoss(reduction="sum")
         optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
         sched = None
         if restarts is not None:
@@ -521,6 +521,7 @@ class Denoiser(ABC):
             # Train
             self.model.train()
             for trn_batch in trn_batches:
+                # Batch selection
                 inp_trn_t_b = inp_trn_t[trn_batch]
                 tgt_trn_t_b = tgt_trn_t[trn_batch]
 
@@ -528,6 +529,7 @@ class Denoiser(ABC):
                 if "flip" in self.augmentation:
                     inp_trn_t_b, tgt_trn_t_b = random_flips(inp_trn_t_b, tgt_trn_t_b)
 
+                # Fwd
                 out_trn: pt.Tensor = self.model(inp_trn_t_b)
 
                 loss_trn = loss_data_fn(out_trn, tgt_trn_t_b)
@@ -562,7 +564,7 @@ class Denoiser(ABC):
             # Test
             self.model.eval()
             with pt.inference_mode():
-                out_tst = self.model(inp_tst_t)
+                out_tst: pt.Tensor = self.model(inp_tst_t)
                 loss_tst = loss_data_fn(out_tst, tgt_tst_t)
                 losses["tst"].append(loss_tst.item())
 
