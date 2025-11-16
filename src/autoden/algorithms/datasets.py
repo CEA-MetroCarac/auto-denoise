@@ -133,16 +133,21 @@ def get_flip_axes(axes: Sequence[int]) -> Sequence[tuple[int, ...]]:
     return sum([[*combinations(axes, d)] for d in range(len(axes) + 1)], [])
 
 
-def random_flips(*imgs: pt.Tensor, flips: Sequence[tuple[int, ...]] | None = None) -> Sequence[pt.Tensor]:
-    """Randomly flip images.
+def random_flips(
+    *imgs: pt.Tensor, flips: Sequence[tuple[int, ...]] | None = None, rng: np.random.Generator | None = None
+) -> Sequence[pt.Tensor]:
+    """Randomly flip images along specified dimensions.
 
     Parameters
     ----------
     *imgs : torch.Tensor
-        The input images
+        The input images to be flipped.
     flips : Sequence[tuple[int, ...]] | None, optional
-        If None, it will call _get_flip_dims on the ndim of the first image.
-        The flips to be selected from, by default None.
+        The possible flip dimensions to choose from. If None, it will call _get_flip_dims on the ndim of the first image.
+        By default None.
+    rng : np.random.Generator | None, optional
+        The random number generator to use. If None, a default generator will be used.
+        By default None.
 
     Returns
     -------
@@ -151,21 +156,28 @@ def random_flips(*imgs: pt.Tensor, flips: Sequence[tuple[int, ...]] | None = Non
     """
     if flips is None:
         flips = get_flip_dims(imgs[0].ndim - 2)
-    rand_val = np.random.randint(len(flips))
+    if rng is None:
+        rng = np.random.default_rng()
+    rand_val = int(rng.integers(0, len(flips)))
 
     flip = flips[rand_val]
     return [pt.flip(im, flip) for im in imgs]
 
 
-def random_rotations(*imgs: pt.Tensor, dims: tuple[int, int] | None = None) -> Sequence[pt.Tensor]:
-    """Randomly rotate images.
+def random_rotations(
+    *imgs: pt.Tensor, dims: tuple[int, int] | None = None, rng: np.random.Generator | None = None
+) -> Sequence[pt.Tensor]:
+    """Randomly rotate images by multiples of 90 degrees.
 
     Parameters
     ----------
     *imgs : torch.Tensor
-        The input images
+        The input images to be rotated.
     dims : tuple[int, int], optional
-        The dimensions to rotate, by default (-2, -1)
+        The dimensions to rotate. By default (-2, -1).
+    rng : np.random.Generator | None, optional
+        The random number generator to use. If None, a default generator will be used.
+        By default None.
 
     Returns
     -------
@@ -175,6 +187,9 @@ def random_rotations(*imgs: pt.Tensor, dims: tuple[int, int] | None = None) -> S
     rand_val = np.random.randint(4)
     if dims is None:
         dims = (-2, -1)
+    if rng is None:
+        rng = np.random.default_rng()
+    rand_val = int(rng.integers(0, 4))
 
     if rand_val > 0:
         return [pt.rot90(im, k=rand_val, dims=dims) for im in imgs]
@@ -184,6 +199,14 @@ def random_rotations(*imgs: pt.Tensor, dims: tuple[int, int] | None = None) -> S
 
 class Augmentation(ABC):
     """Base class for data augmentations."""
+
+    rng: np.random.Generator
+
+    def __init__(self, rng: np.random.Generator | None = None) -> None:
+        if rng is None:
+            rng = np.random.default_rng()
+        self.rng = rng
+        super().__init__()
 
     @abstractmethod
     def __call__(self, data: Sequence[pt.Tensor]) -> Sequence[pt.Tensor]:
@@ -204,7 +227,9 @@ class Augmentation(ABC):
 class AugmentationFlip(Augmentation):
     """Random flip augmentation."""
 
-    def __init__(self, axes: Sequence[int] | None = None, n_dims: int | None = None) -> None:
+    def __init__(
+        self, axes: Sequence[int] | None = None, n_dims: int | None = None, rng: np.random.Generator | None = None
+    ) -> None:
         """Initialize the random flip augmentation class.
 
         The `axes` or `n_dims` parameter should be set at the same time.
@@ -215,8 +240,11 @@ class AugmentationFlip(Augmentation):
             The axes of the flips, by default None
         n_dims : int | None, optional
             The dimensions of the flips, by default None
+        rng : np.random.Generator | None, optional
+            The random number generator to use. If None, a default generator will be used.
+            By default None.
         """
-        super().__init__()
+        super().__init__(rng)
 
         if axes is None and n_dims is None:
             self.flips = None
@@ -240,21 +268,24 @@ class AugmentationFlip(Augmentation):
         Sequence[torch.Tensor]
             The flipped tensors.
         """
-        return random_flips(*data, flips=self.flips)
+        return random_flips(*data, flips=self.flips, rng=self.rng)
 
 
 class AugmentationRotation(Augmentation):
     """Random rotation augmentation."""
 
-    def __init__(self, dims: tuple[int, int] | None = None) -> None:
+    def __init__(self, dims: tuple[int, int] | None = None, rng: np.random.Generator | None = None) -> None:
         """Initialize the rotation augmentation class.
 
         Parameters
         ----------
         dims : tuple[int, int]
             The dimensions to rotate, by default (-2, -1)
+        rng : np.random.Generator | None, optional
+            The random number generator to use. If None, a default generator will be used.
+            By default None.
         """
-        super().__init__()
+        super().__init__(rng)
 
         self.dims = dims
 
@@ -271,13 +302,15 @@ class AugmentationRotation(Augmentation):
         Sequence[torch.Tensor]
             The rotated tensors.
         """
-        return random_rotations(*data, dims=self.dims)
+        return random_rotations(*data, dims=self.dims, rng=self.rng)
 
 
 class AugmentationGaussianNoise(Augmentation):
     """Random Gaussian noise augmentation."""
 
-    def __init__(self, sigma: float | Sequence[float] | tuple[float, float], n: int = 1) -> None:
+    def __init__(
+        self, sigma: float | Sequence[float] | tuple[float, float], n: int = 1, rng: np.random.Generator | None = None
+    ) -> None:
         """Initialize the Gaussian noise augmentation class.
 
         Parameters
@@ -289,8 +322,11 @@ class AugmentationGaussianNoise(Augmentation):
             If a tuple is provided, it should be a range (min, max), and a random value will be chosen from this range for each element.
         n : int, optional
             The number of elements to add noise to, by default 1
+        rng : np.random.Generator | None, optional
+            The random number generator to use. If None, a default generator will be used.
+            By default None.
         """
-        super().__init__()
+        super().__init__(rng)
 
         self.sigma = sigma
         self.n = n
@@ -316,7 +352,7 @@ class AugmentationGaussianNoise(Augmentation):
         elif isinstance(self.sigma, tuple) and len(self.sigma) == 2:
             sigma = pt.rand(1).item() * (self.sigma[1] - self.sigma[0]) + self.sigma[0]
         elif isinstance(self.sigma, Sequence):
-            sigma = self.sigma[np.random.randint(0, len(self.sigma) + 1)]
+            sigma = self.sigma[int(self.rng.integers(0, len(self.sigma)))]
         else:
             raise ValueError("Invalid sigma value. It should be a float, a sequence of floats, or a tuple of two floats.")
 
@@ -331,7 +367,9 @@ class AugmentationGaussianNoise(Augmentation):
 class AugmentationPoissonNoise(Augmentation):
     """Random Poisson noise augmentation."""
 
-    def __init__(self, n_10_counts: float | Sequence[float] | tuple[float, float], n: int = 1) -> None:
+    def __init__(
+        self, n_10_counts: float | Sequence[float] | tuple[float, float], n: int = 1, rng: np.random.Generator | None = None
+    ) -> None:
         """Initialize the Poisson noise augmentation class.
 
         Parameters
@@ -343,8 +381,11 @@ class AugmentationPoissonNoise(Augmentation):
             If a tuple is provided, it should be a range (min, max), and a random value will be chosen from this range for each element.
         n : int, optional
             The number of elements to add noise to, by default 1
+        rng : np.random.Generator | None, optional
+            The random number generator to use. If None, a default generator will be used.
+            By default None.
         """
-        super().__init__()
+        super().__init__(rng)
 
         self.n_10_counts = n_10_counts
         self.n = n
@@ -370,7 +411,7 @@ class AugmentationPoissonNoise(Augmentation):
         elif isinstance(self.n_10_counts, tuple) and len(self.n_10_counts) == 2:
             n_10_counts = pt.rand(1).item() * (self.n_10_counts[1] - self.n_10_counts[0]) + self.n_10_counts[0]
         elif isinstance(self.n_10_counts, Sequence):
-            n_10_counts = self.n_10_counts[np.random.randint(0, len(self.n_10_counts))]
+            n_10_counts = self.n_10_counts[int(self.rng.integers(0, len(self.n_10_counts)))]
         else:
             raise ValueError(
                 "Invalid n_10_counts value. It should be a float, a sequence of floats, or a tuple of two floats."
