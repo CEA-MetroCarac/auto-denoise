@@ -13,7 +13,8 @@ import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, data_to_tensor
+from autoden.algorithms.datasets import data_to_tensor
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised
 from autoden.losses import LossRegularizer
 from autoden.models.config import create_optimizer
 from autoden.models.param_utils import fix_invalid_gradient_values

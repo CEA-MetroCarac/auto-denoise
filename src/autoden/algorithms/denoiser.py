@@ -8,64 +8,20 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from itertools import combinations
 from typing import Any
 from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as pt
-from numpy.typing import DTypeLike, NDArray
+from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
+from autoden.algorithms.datasets import data_to_tensor, get_batches, random_flips, Augmentation, DatasetNumpy, DatasetsList
 from autoden.losses import LossRegularizer, LossTV
 from autoden.models.config import NetworkParams, SerializableModel, create_network, create_optimizer
 from autoden.models.io import load_model_state, save_model_state
 from autoden.models.param_utils import get_num_parameters, fix_invalid_gradient_values
-
-
-def data_to_tensor(
-    data: NDArray, device: str, n_dims: int = 2, spectral_axis: int | None = None, dtype: DTypeLike | None = np.float32
-) -> pt.Tensor:
-    """
-    Convert a NumPy array to a PyTorch tensor.
-
-    Parameters
-    ----------
-    data : NDArray
-        The input data to be converted to a tensor.
-    device : str
-        The device to which the tensor should be moved (e.g., 'cpu', 'cuda').
-    n_dims : int, optional
-        The number of dimensions to consider for the data shape, by default 2.
-    spectral_axis : int or None, optional
-        The axis along which the spectral data is located, by default None.
-    dtype : DTypeLike or None, optional
-        The data type to which the data should be converted, by default np.float32.
-
-    Returns
-    -------
-    pt.Tensor
-        The converted PyTorch tensor.
-
-    Notes
-    -----
-    If `spectral_axis` is provided, the data is moved to the specified axis.
-    Otherwise, the data is expanded to include an additional dimension.
-    The data is then reshaped and converted to the specified data type before
-    being converted to a PyTorch tensor and moved to the specified device.
-    """
-    if spectral_axis is not None:
-        num_channels = data.shape[spectral_axis]
-        data = np.moveaxis(data, spectral_axis, -n_dims - 1)
-    else:
-        num_channels = 1
-        data = np.expand_dims(data, -n_dims - 1)
-    data_shape = data.shape[-n_dims:]
-    data = data.reshape([-1, num_channels, *data_shape])
-    if dtype is not None:
-        data = data.astype(dtype)
-    return pt.tensor(data, device=device)
 
 
 def get_normalization_range(vol: NDArray, percentile: float | None = None) -> tuple[float, float, float]:
@@ -154,76 +110,6 @@ def get_random_image_indices(num_imgs: int, num_tst_ratio: float) -> list:
     return list(np.random.choice(num_imgs, size=num_tst_imgs, replace=False))
 
 
-def get_flip_dims(n_dims: int) -> Sequence[tuple[int, ...]]:
-    """
-    Generate all possible combinations of dimensions to flip for a given number of dimensions.
-
-    Parameters
-    ----------
-    n_dims : int
-        The number of dimensions.
-
-    Returns
-    -------
-    Sequence[tuple[int, ...]]
-        A sequence of tuples, where each tuple represents a combination of dimensions to flip.
-        The dimensions are represented by negative indices, ranging from -n_dims to -1.
-
-    Examples
-    --------
-    >>> _get_flip_dims(2)
-    [(), (-2,), (-1,), (-2, -1)]
-    """
-    return sum([[*combinations(range(-n_dims, 0), d)] for d in range(n_dims + 1)], [])
-
-
-def random_flips(*imgs: pt.Tensor, flips: Sequence[tuple[int, ...]] | None = None) -> Sequence[pt.Tensor]:
-    """Randomly flip images.
-
-    Parameters
-    ----------
-    *imgs : torch.Tensor
-        The input images
-    flips : Sequence[tuple[int, ...]] | None, optional
-        If None, it will call _get_flip_dims on the ndim of the first image.
-        The flips to be selected from, by default None.
-
-    Returns
-    -------
-    Sequence[torch.Tensor]
-        The flipped images.
-    """
-    if flips is None:
-        flips = get_flip_dims(imgs[0].ndim - 2)
-    rand_val = np.random.randint(len(flips))
-
-    flip = flips[rand_val]
-    return [pt.flip(im, flip) for im in imgs]
-
-
-def random_rotations(*imgs: pt.Tensor, dims: tuple[int, int] = (-2, -1)) -> Sequence[pt.Tensor]:
-    """Randomly rotate images.
-
-    Parameters
-    ----------
-    *imgs : torch.Tensor
-        The input images
-    dims : tuple[int, int], optional
-        The dimensions to rotate, by default (-2, -1)
-
-    Returns
-    -------
-    Sequence[torch.Tensor]
-        The rotated images.
-    """
-    rand_val = np.random.randint(4)
-
-    if rand_val > 0:
-        return [pt.rot90(im, k=rand_val, dims=dims) for im in imgs]
-    else:
-        return imgs
-
-
 @dataclass
 class DataScaleBias:
     """Data scale and bias."""
@@ -302,7 +188,7 @@ class Denoiser(ABC):
     model: pt.nn.Module
     device: str
     batch_size: int | None
-    augmentation: list[str]
+    augmentation: str | Augmentation | Sequence[str | Augmentation] | None
 
     save_epochs_dir: str | None
     verbose: bool
@@ -314,7 +200,7 @@ class Denoiser(ABC):
         reg_val: float | LossRegularizer | None = None,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         batch_size: int | None = None,
-        augmentation: str | Sequence[str] | None = None,
+        augmentation: str | Augmentation | Sequence[str | Augmentation] | None = None,
         save_epochs_dir: str | None = None,
         verbose: bool = True,
     ) -> None:
@@ -349,12 +235,12 @@ class Denoiser(ABC):
         if verbose:
             get_num_parameters(self.model, verbose=True)
 
-        if augmentation is None:
-            augmentation = []
-        elif isinstance(augmentation, str):
-            augmentation = [augmentation.lower()]
-        elif isinstance(augmentation, Sequence):
-            augmentation = [str(a).lower() for a in augmentation]
+        # if augmentation is None:
+        #     augmentation = []
+        # elif isinstance(augmentation, str):
+        #     augmentation = [augmentation.lower()]
+        # elif isinstance(augmentation, Sequence):
+        #     augmentation = [str(a).lower() for a in augmentation]
 
         self.data_sb = data_scale_bias
 
@@ -497,21 +383,17 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_t = data_to_tensor(dset_trn[0], device=self.device, n_dims=self.n_dims)
-        tgt_trn_t = data_to_tensor(dset_trn[1], device=self.device, n_dims=self.n_dims)
+        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims)
+        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims)
 
         inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims)
         tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
-        num_trn_instances = inp_trn_t.shape[0]
+        dset_trn_d = DatasetsList((inp_trn_d, tgt_trn_d), augmentation=self.augmentation)
+        num_trn_instances = len(dset_trn_d)
 
-        if self.batch_size is not None:
-            trn_batches = [
-                range(ii, min(ii + self.batch_size, num_trn_instances)) for ii in range(0, num_trn_instances, self.batch_size)
-            ]
-        else:
-            trn_batches = [slice(None)]
+        trn_batches = get_batches(num_trn_instances, self.batch_size)
 
         optim.zero_grad()
         for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
@@ -522,12 +404,7 @@ class Denoiser(ABC):
             self.model.train()
             for trn_batch in trn_batches:
                 # Batch selection
-                inp_trn_t_b = inp_trn_t[trn_batch]
-                tgt_trn_t_b = tgt_trn_t[trn_batch]
-
-                # Augmentation
-                if "flip" in self.augmentation:
-                    inp_trn_t_b, tgt_trn_t_b = random_flips(inp_trn_t_b, tgt_trn_t_b)
+                inp_trn_t_b, tgt_trn_t_b = dset_trn_d[trn_batch]
 
                 # Fwd
                 out_trn: pt.Tensor = self.model(inp_trn_t_b)
@@ -624,19 +501,17 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
-        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims)
+        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims)
 
         mask_trn = np.logical_not(mask_tst)
 
-        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
 
-        num_instances = inp_t.shape[0]
-        if self.batch_size is not None:
-            batches = [range(ii, min(ii + self.batch_size, num_instances)) for ii in range(0, num_instances, self.batch_size)]
-        else:
-            batches = [slice(None)]
+        dset_d = DatasetsList((inp_d, tgt_d, mask_trn_d, mask_tst_d), augmentation=self.augmentation)
+        num_instances = len(dset_d)
+        batches = get_batches(num_instances, self.batch_size)
 
         optim.zero_grad()
         self.model.train()
@@ -648,14 +523,7 @@ class Denoiser(ABC):
 
             for batch in batches:
                 # Batch selection
-                inp_t_b = inp_t[batch]
-                tgt_t_b = tgt_t[batch]
-                mask_trn_t_b = mask_trn_t[batch]
-                mask_tst_t_b = mask_tst_t[batch]
-
-                # Augmentation
-                if "flip" in self.augmentation:
-                    inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b = random_flips(inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b)
+                inp_t_b, tgt_t_b, mask_trn_t_b, mask_tst_t_b = dset_d[batch]
 
                 # Fwd
                 out_t: pt.Tensor = self.model(inp_t_b)
