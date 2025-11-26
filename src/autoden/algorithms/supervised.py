@@ -120,9 +120,6 @@ class Supervised(Denoiser):
         inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
         tgt = tgt * self.data_sb.scale_tgt - self.data_sb.bias_tgt
 
-        inp = inp.astype(np.float32)
-        tgt = tgt.astype(np.float32)
-
         reg = self._get_regularization()
 
         if isinstance(tst_inds, Sequence):
