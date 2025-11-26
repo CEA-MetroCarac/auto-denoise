@@ -68,8 +68,10 @@ class DIP(Denoiser):
         self,
         inp: NDArray,
         tgt: NDArray,
-        pixel_mask_trn: NDArray,
+        mask_trn: NDArray,
+        *,
         epochs: int,
+        learning_rate: float = 1e-3,
         optimizer: str = "adam",
         lower_limit: float | NDArray | None = None,
     ) -> dict[str, NDArray]:
@@ -82,10 +84,12 @@ class DIP(Denoiser):
             The input image.
         tgt : NDArray
             The target image to be denoised.
-        pixel_mask_trn : NDArray
+        mask_trn : NDArray
             The mask array indicating the training pixels.
         epochs : int
             The number of training epochs.
+        learning_rate : float, optional
+            The learning rate for the optimizer. Default is 1e-3.
         optimizer : str, optional
             The optimization algorithm to use. Default is "adam".
         lower_limit : float | NDArray | None, optional
@@ -113,7 +117,14 @@ class DIP(Denoiser):
 
         reg = self._get_regularization()
         losses = self._train_pixelmask_small(
-            tmp_inp, tmp_tgt, pixel_mask_trn, epochs=epochs, optimizer=optimizer, regularizer=reg, lower_limit=lower_limit
+            inp=tmp_inp,
+            tgt=tmp_tgt,
+            mask_trn=mask_trn,
+            epochs=epochs,
+            learning_rate=learning_rate,
+            optimizer=optimizer,
+            regularizer=reg,
+            lower_limit=lower_limit,
         )
 
         if self.verbose:
@@ -127,6 +138,7 @@ class DIP(Denoiser):
         tgt: NDArray,
         mask_trn: NDArray,
         epochs: int,
+        learning_rate: float = 1e-3,
         optimizer: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
@@ -140,7 +152,7 @@ class DIP(Denoiser):
         # SBI stands for Scale and Bias Invariant
 
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.model, algo=optimizer)
+        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
         sched = None
         if restarts is not None:
             sched = pt.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, epochs // restarts)

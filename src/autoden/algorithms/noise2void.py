@@ -73,10 +73,12 @@ class N2V(Denoiser):
     def train(
         self,
         inp: NDArray,
-        epochs: int,
         tst_inds: Sequence[int] | NDArray,
+        *,
+        epochs: int,
         mask_shape: int | Sequence[int] | NDArray = 1,
         ratio_blind_spot: float = 0.015,
+        learning_rate: float = 1e-3,
         algo: str = "adam",
         lower_limit: float | NDArray | None = None,
     ) -> dict[str, NDArray]:
@@ -86,12 +88,16 @@ class N2V(Denoiser):
         ----------
         inp : NDArray
             The input images, which will also be targets
-        epochs : int
-            Number of training epochs
         tst_inds : Sequence[int] | NDArray
             The validation set indices
+        epochs : int
+            Number of training epochs
         mask_shape : int | Sequence[int] | NDArray
             Shape of the blind spot mask, by default 1.
+        ratio_blind_spot : float
+            Ratio of the blind spot size to the total image size, by default 0.015.
+        learning_rate : float
+            Learning rate for the optimizer, by default 1e-3.
         algo : str, optional
             Optimizer algorithm to use, by default "adam"
         lower_limit : float | NDArray | None, optional
@@ -122,6 +128,7 @@ class N2V(Denoiser):
             epochs=epochs,
             mask_shape=mask_shape,
             ratio_blind_spot=ratio_blind_spot,
+            learning_rate=learning_rate,
             algo=algo,
             regularizer=reg,
             lower_limit=lower_limit,
@@ -139,6 +146,7 @@ class N2V(Denoiser):
         epochs: int,
         mask_shape: int | Sequence[int] | NDArray,
         ratio_blind_spot: float,
+        learning_rate: float = 1e-3,
         algo: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
@@ -151,7 +159,7 @@ class N2V(Denoiser):
         # sbi stands for: Scale and bias invariant loss
 
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.model, algo=algo)
+        optim = create_optimizer(self.model, algo=algo, learning_rate=learning_rate)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp

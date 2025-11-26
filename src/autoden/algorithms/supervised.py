@@ -72,6 +72,7 @@ class Supervised(Denoiser):
         inp: NDArray,
         tgt: NDArray,
         tst_inds: Sequence[int] | NDArray,
+        *,
         epochs: int,
         learning_rate: float = 1e-3,
         optimizer: str = "adam",
@@ -104,6 +105,11 @@ class Supervised(Denoiser):
         accum_grads : bool, optional
             Whether to accumulate gradients over multiple batches. If True, gradients will be accumulated over multiple
             batches before updating the model parameters. Default is False.
+
+        Returns
+        -------
+        dict[str, NDArray]
+            A dictionary containing the training history, including the loss and validation loss over the epochs.
         """
         num_imgs = inp.shape[0]
 

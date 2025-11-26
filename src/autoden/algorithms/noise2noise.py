@@ -76,7 +76,8 @@ class N2N(Denoiser):
         self,
         inp: NDArray,
         tgt: NDArray,
-        pixel_mask_tst: NDArray,
+        mask_trn: NDArray,
+        *,
         epochs: int,
         learning_rate: float = 1e-3,
         optimizer: str = "adam",
@@ -95,8 +96,8 @@ class N2N(Denoiser):
         tgt : NDArray
             The target data to be used for training. This should be a NumPy array of shape (N, H, W), where N is the
             number of samples, and H and W are the height and width of each sample, respectively.
-        pixel_mask_tst : NDArray
-            The mask array indicating the test pixels.
+        mask_trn : NDArray
+            The mask array indicating the pixels used for training.
         epochs : int
             The number of epochs to train the model.
         learning_rate : float, optional
@@ -136,9 +137,9 @@ class N2N(Denoiser):
 
         reg = self._get_regularization()
         losses = self._train_pixelmask_batched(
-            tmp_inp,
-            tmp_tgt,
-            pixel_mask_tst,
+            inp=inp,
+            tgt=tgt,
+            mask_tst=mask_trn,
             epochs=epochs,
             learning_rate=learning_rate,
             optimizer=optimizer,
