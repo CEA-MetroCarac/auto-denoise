@@ -4,22 +4,26 @@ Self-supervised denoiser implementation, based on Noise2Noise.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
+from warnings import warn
+
 import numpy as np
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.denoiser import (
-    Denoiser,
-    compute_scaling_selfsupervised,
-    get_random_pixel_mask,
-)
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, get_random_pixel_mask
+from autoden.models.io import SerializableModel
 
 
 class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
     def prepare_data(
-        self, inp: NDArray, num_tst_ratio: float = 0.2, strategy: str = "1:X"
+        self,
+        inp: NDArray,
+        num_tst_ratio: float = 0.2,
+        strategy: str = "1:X",
+        spectral_axis: int | None = None,
+        realizations_axis: int = 0,
     ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data for training.
@@ -51,13 +55,48 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        if inp.ndim < self.n_dims + 1:
-            raise ValueError(f"Target data should at least be of {self.n_dims + 1} dimensions, but its shape is {inp.shape}")
+        is_complex = np.iscomplexobj(inp)
 
-        realizations_batch_axis = inp.ndim - self.n_dims - 1
+        if spectral_axis is not None:
+            expected_spectral_channel = -self.n_dims - 1
+            inp = np.moveaxis(inp, spectral_axis, expected_spectral_channel)
+            spectral_axis = expected_spectral_channel
 
-        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=realizations_batch_axis)
-        inp = inp.swapaxes(0, realizations_batch_axis)
+            if is_complex:
+                inp = np.concatenate((inp.real, inp.imag), axis=spectral_axis)
+        elif is_complex:
+            spectral_axis = -self.n_dims - 1
+            inp = np.stack((inp.real, inp.imag), axis=spectral_axis)
+
+        if spectral_axis is not None:
+            req_ch = inp.shape[spectral_axis]
+            try:
+                model_ch_in = self._get_model_init_param("n_channels_in")
+                model_ch_out = self._get_model_init_param("n_channels_out")
+
+                if req_ch != model_ch_in or req_ch != model_ch_out:
+                    raise ValueError(
+                        f"Required channels: {req_ch}, while model's channels are: in = {model_ch_in}, out = {model_ch_out}"
+                    )
+            except ValueError as exc:
+                warn(
+                    f"Required channels: {req_ch}, but could not determine the model's number"
+                    " of input/output channels (not a `SerializableModel`). This could lead to unexpected results."
+                    f" This was originated from: {exc}"
+                )
+
+        model_n_axes = self.n_dims + (spectral_axis is not None)
+        if inp.ndim < model_n_axes:
+            raise ValueError(f"Target data should at least be of {model_n_axes + 1} dimensions, but its shape is {inp.shape}")
+
+        # This will be the destination position of the axis
+        realizations_dst_axis = inp.ndim - model_n_axes - 1
+
+        inp_x = np.stack(
+            [np.delete(inp, obj=ii, axis=realizations_axis).mean(axis=realizations_axis) for ii in range(len(inp))],
+            axis=realizations_dst_axis,
+        )
+        inp = np.moveaxis(inp, source=realizations_axis, destination=realizations_dst_axis)
 
         if strategy.upper() == "1:X":
             tmp_inp = inp
@@ -132,9 +171,6 @@ class N2N(Denoiser):
         inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
         tgt = tgt * self.data_sb.scale_tgt - self.data_sb.bias_tgt
 
-        tmp_inp = inp.astype(np.float32)
-        tmp_tgt = tgt.astype(np.float32)
-
         reg = self._get_regularization()
         losses = self._train_pixelmask_batched(
             inp=inp,
@@ -175,7 +211,9 @@ class N2N(Denoiser):
         If `self.batch_size` is set, the input data is processed in batches to avoid memory issues.
         """
         inp_shape = inp.shape
-        inp = inp.reshape([inp_shape[0] * inp_shape[1], *inp_shape[2:]])
+        dims_to_preserve = self.n_dims + (self.n_channels_in > 1)
+        inp = inp.reshape([-1, *inp_shape[-dims_to_preserve:]])
+
         if self.batch_size is not None:
             out = []
             for b in tqdm(range(0, inp.shape[0], self.batch_size), desc="Inference batch"):

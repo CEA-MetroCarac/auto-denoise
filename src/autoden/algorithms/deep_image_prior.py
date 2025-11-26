@@ -167,11 +167,18 @@ class DIP(Denoiser):
 
         mask_tst = np.logical_not(mask_trn)
 
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
-        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        spectral_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
+
+        mask_trn_t = data_to_tensor(
+            mask_trn, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None
+        )
+        mask_tst_t = data_to_tensor(
+            mask_tst, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None
+        )
 
         tgt_trn = tgt_t[mask_trn_t]
         tgt_tst = tgt_t[mask_tst_t]

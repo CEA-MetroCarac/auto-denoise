@@ -251,24 +251,61 @@ class Denoiser(ABC):
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 
+    def _get_model_init_param(self, param_name: str, default_value: int | None = None) -> int:
+        if isinstance(self.model, SerializableModel) and param_name in self.model.init_params:
+            return self.model.init_params[param_name]
+        elif default_value is None:
+            raise ValueError(f"Could not determine the value of parameter '{param_name}' for the given model.")
+        else:
+            return default_value
+
     @property
     def n_dims(self) -> int:
         """
         Returns the expected signal dimensions.
 
         If the model is an instance of `SerializableModel` and has an `init_params`
-        attribute containing the key `"n_dims"`, this property returns the value
-        associated with `"n_dims"`. Otherwise, it defaults to 2.
+        attribute containing the key `"n_dims"`, this property returns its value.
+        Otherwise, it defaults to 2.
 
         Returns
         -------
         int
             The expected signal dimensions.
         """
-        if isinstance(self.model, SerializableModel) and "n_dims" in self.model.init_params:
-            return self.model.init_params["n_dims"]
-        else:
-            return 2
+        return self._get_model_init_param("n_dims", default_value=2)
+
+    @property
+    def n_channels_in(self) -> int:
+        """
+        Returns the number of input channels of the model.
+
+        If the model is an instance of `SerializableModel` and has an `init_params`
+        attribute containing the key `"n_channels_in"`, this property returns its value.
+        Otherwise, it defaults to 1.
+
+        Returns
+        -------
+        int
+            The number of input channels.
+        """
+        return self._get_model_init_param("n_channels_in", default_value=1)
+
+    @property
+    def n_channels_out(self) -> int:
+        """
+        Returns the number of output channels of the model.
+
+        If the model is an instance of `SerializableModel` and has an `init_params`
+        attribute containing the key `"n_channels_out"`, this property returns its value.
+        Otherwise, it defaults to 1.
+
+        Returns
+        -------
+        int
+            The number of output channels.
+        """
+        return self._get_model_init_param("n_channels_out", default_value=1)
 
     def _get_regularization(self) -> LossRegularizer | None:
         if isinstance(self.reg_val, float):
@@ -335,7 +372,8 @@ class Denoiser(ABC):
         if self.data_sb is not None:
             inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
+        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
 
         self.model.eval()
         with pt.inference_mode():
@@ -383,11 +421,14 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims)
-        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims)
+        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        spectral_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims)
-        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims)
+        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
+
+        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
         dset_trn_d = DatasetsList((inp_trn_d, tgt_trn_d), augmentation=self.augmentation)
@@ -501,13 +542,16 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims)
-        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims)
+        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        spectral_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
+
+        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
 
         mask_trn = np.logical_not(mask_tst)
 
-        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None)
+        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None)
 
         dset_d = DatasetsList((inp_d, tgt_d, mask_trn_d, mask_tst_d), augmentation=self.augmentation)
         num_instances = len(dset_d)
