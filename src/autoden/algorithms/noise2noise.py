@@ -4,14 +4,11 @@ Self-supervised denoiser implementation, based on Noise2Noise.
 @author: Nicola VIGANÒ, CEA-MEM, Grenoble, France
 """
 
-from warnings import warn
-
 import numpy as np
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
 from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, get_random_pixel_mask
-from autoden.models.io import SerializableModel
 
 
 class N2N(Denoiser):
@@ -41,6 +38,12 @@ class N2N(Denoiser):
             - "1:X": Use the mean of the remaining samples as the target for each sample.
             - "X:1": Use the mean of the remaining samples as the input for each sample.
             Default is "1:X".
+        spectral_axis : int | None, optional
+            The axis of the input array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
+        realizations_axis : int, optional
+            The axis of the input array that corresponds to the redundant realizations dimension. Default is 0.
 
         Returns
         -------
@@ -55,35 +58,7 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        is_complex = np.iscomplexobj(inp)
-
-        if spectral_axis is not None:
-            expected_spectral_channel = -self.n_dims - 1
-            inp = np.moveaxis(inp, spectral_axis, expected_spectral_channel)
-            spectral_axis = expected_spectral_channel
-
-            if is_complex:
-                inp = np.concatenate((inp.real, inp.imag), axis=spectral_axis)
-        elif is_complex:
-            spectral_axis = -self.n_dims - 1
-            inp = np.stack((inp.real, inp.imag), axis=spectral_axis)
-
-        if spectral_axis is not None:
-            req_ch = inp.shape[spectral_axis]
-            try:
-                model_ch_in = self._get_model_init_param("n_channels_in")
-                model_ch_out = self._get_model_init_param("n_channels_out")
-
-                if req_ch != model_ch_in or req_ch != model_ch_out:
-                    raise ValueError(
-                        f"Required channels: {req_ch}, while model's channels are: in = {model_ch_in}, out = {model_ch_out}"
-                    )
-            except ValueError as exc:
-                warn(
-                    f"Required channels: {req_ch}, but could not determine the model's number"
-                    " of input/output channels (not a `SerializableModel`). This could lead to unexpected results."
-                    f" This was originated from: {exc}"
-                )
+        inp, spectral_axis = self._prepare_spectral_axis(inp, spectral_axis)
 
         model_n_axes = self.n_dims + (spectral_axis is not None)
         if inp.ndim < model_n_axes:
