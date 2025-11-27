@@ -19,7 +19,7 @@ class N2N(Denoiser):
         inp: NDArray,
         num_tst_ratio: float = 0.2,
         strategy: str = "1:X",
-        spectral_axis: int | None = None,
+        channel_axis: int | None = None,
         realizations_axis: int = 0,
     ) -> tuple[NDArray, NDArray, NDArray]:
         """
@@ -38,7 +38,7 @@ class N2N(Denoiser):
             - "1:X": Use the mean of the remaining samples as the target for each sample.
             - "X:1": Use the mean of the remaining samples as the input for each sample.
             Default is "1:X".
-        spectral_axis : int | None, optional
+        channel_axis : int | None, optional
             The axis of the input array that corresponds to the spectral dimension.
             If None, the spectral dimension is assumed to not be present.
             Default is None.
@@ -58,9 +58,9 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        inp, spectral_axis = self._prepare_spectral_axis(inp, spectral_axis)
+        inp, channel_axis = self._prepare_channel_axis(inp, channel_axis)
 
-        model_n_axes = self.n_dims + (spectral_axis is not None)
+        model_n_axes = self.n_dims + (channel_axis is not None)
         if inp.ndim < model_n_axes:
             raise ValueError(f"Target data should at least be of {model_n_axes + 1} dimensions, but its shape is {inp.shape}")
 
@@ -165,7 +165,7 @@ class N2N(Denoiser):
 
         return losses
 
-    def infer(self, inp: NDArray, average_splits: bool = True) -> NDArray:
+    def infer(self, inp: NDArray, average_splits: bool = True, channel_axis_dst: int | None = None) -> NDArray:
         """
         Perform inference on the input data.
 
@@ -175,6 +175,8 @@ class N2N(Denoiser):
             The input data to perform inference on. It is expected to have an extra dimension including the different splits.
         average_splits : bool, optional
             If True, the splits are averaged. Default is True.
+        channel_axis_dst : int | None, optional
+            The desired channel axis for the output. If None, the output will have the same channel axis as the input.
 
         Returns
         -------
@@ -197,7 +199,12 @@ class N2N(Denoiser):
         else:
             out = super().infer(inp)
         out = out.reshape(inp_shape)
+
         if average_splits:
-            realization_batch_axis = -self.n_dims - 1
+            realization_batch_axis = -dims_to_preserve - 1
             out = out.mean(axis=realization_batch_axis)
+
+        if channel_axis_dst is not None:
+            out = self._move_output_channel_axis(out, channel_axis_dst)
+
         return out
