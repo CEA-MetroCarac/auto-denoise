@@ -19,7 +19,7 @@ def test_n2v_train(n2v_algo):
     inp = np.random.rand(10, 10, 10)
     epochs = 1
     tst_inds = [0, 1]
-    losses = n2v_algo.train(inp, epochs, tst_inds)
+    losses = n2v_algo.train(inp, tst_inds, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses

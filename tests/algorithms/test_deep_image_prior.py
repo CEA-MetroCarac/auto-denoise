@@ -28,7 +28,7 @@ def test_dip_train(dip_algo):
     tgt = np.random.rand(10, 10, 10)
     pixel_mask_trn = np.random.rand(10, 10, 10) > 0.5
     epochs = 1
-    losses = dip_algo.train(inp, tgt, pixel_mask_trn, epochs)
+    losses = dip_algo.train(inp, tgt, pixel_mask_trn, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses

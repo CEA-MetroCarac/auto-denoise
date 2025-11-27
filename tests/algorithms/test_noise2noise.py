@@ -45,7 +45,7 @@ def test_n2n_train(n2n_algo):
     tgt = np.random.rand(10, 10, 10)
     pixel_mask_trn = np.random.rand(10, 10, 10) > 0.5
     epochs = 1
-    losses = n2n_algo.train(inp, tgt, pixel_mask_trn, epochs)
+    losses = n2n_algo.train(inp, tgt, pixel_mask_trn, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
@@ -87,7 +87,7 @@ def test_n2n_train_1d(n2n_algo_1d):
     tgt = np.random.rand(4, 10)
     pixel_mask_trn = np.random.rand(4, 10) > 0.5
     epochs = 1
-    losses = n2n_algo_1d.train(inp, tgt, pixel_mask_trn, epochs)
+    losses = n2n_algo_1d.train(inp, tgt, pixel_mask_trn, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
@@ -99,7 +99,7 @@ def test_n2n_train_3d(n2n_algo_3d):
     tgt = np.random.rand(10, 10, 10, 10)
     pixel_mask_trn = np.random.rand(10, 10, 10, 10) > 0.5
     epochs = 1
-    losses = n2n_algo_3d.train(inp, tgt, pixel_mask_trn, epochs)
+    losses = n2n_algo_3d.train(inp, tgt, pixel_mask_trn, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
@@ -116,7 +116,7 @@ def test_n2n_train_batched(n2n_algo):
     # Set the batch size in the N2N instance
     n2n_algo.batch_size = batch_size
 
-    losses = n2n_algo.train(inp, tgt, pixel_mask_trn, epochs)
+    losses = n2n_algo.train(inp, tgt, pixel_mask_trn, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses

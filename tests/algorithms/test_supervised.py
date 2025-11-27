@@ -22,15 +22,15 @@ def test_supervised_train_selfsimilar(supervised_algo, epochs: int = 1, img_size
     tgt = np.random.rand(10, *img_size)
 
     sup_data = supervised_algo.prepare_data(inp, tgt, num_tst_ratio=2 / 10, strategy="self-similar")
-    losses = supervised_algo.train(*sup_data, epochs)
-    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs)
+    losses = supervised_algo.train(*sup_data, epochs=epochs)
+    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
 
     tst_inds = [0, 1]
-    losses = supervised_algo.train(*sup_data[:2], tst_inds, epochs)
-    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs)
+    losses = supervised_algo.train(*sup_data[:2], tst_inds, epochs=epochs)
+    # losses = supervised_algo.train(inp, tgt, tst_inds, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
@@ -44,7 +44,7 @@ def test_supervised_train_pixelmask(supervised_algo, epochs: int = 1, img_size: 
     tgt = np.random.rand(10, *img_size)
 
     sup_data = supervised_algo.prepare_data(inp, tgt, strategy="pixel-mask")
-    losses = supervised_algo.train(*sup_data, epochs)
+    losses = supervised_algo.train(*sup_data, epochs=epochs)
     assert "loss_trn" in losses
     assert "loss_tst" in losses
     assert "loss_tst_sbi" in losses
