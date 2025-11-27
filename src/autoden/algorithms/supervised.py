@@ -16,7 +16,12 @@ class Supervised(Denoiser):
     """Supervised denoising class."""
 
     def prepare_data(
-        self, inp: NDArray, tgt: NDArray, num_tst_ratio: float = 0.2, strategy: str = "pixel-mask"
+        self,
+        inp: NDArray,
+        tgt: NDArray,
+        num_tst_ratio: float = 0.2,
+        strategy: str = "pixel-mask",
+        spectral_axis: int | None = None,
     ) -> tuple[NDArray, NDArray, NDArray | list[int]]:
         """
         Prepare input data for training.
@@ -37,6 +42,10 @@ class Supervised(Denoiser):
             - "pixel-mask": Use randomly chosen pixels in the images as test set.
             - "self-similar": Use entire randomly chosen images as test set.
             Default is "pixel-mask".
+        spectral_axis : int | None, optional
+            The axis of the target array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
 
         Returns
         -------
@@ -46,12 +55,16 @@ class Supervised(Denoiser):
             - The target data array.
             - Either the mask array indicating the testing pixels or the list of test indices.
         """
-        if inp.ndim < self.n_dims:
-            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {inp.shape}")
+        inp, _ = self._prepare_spectral_axis(inp, spectral_axis)
+        tgt, spectral_axis = self._prepare_spectral_axis(tgt, spectral_axis)
 
-        num_imgs = inp.shape[0]
+        model_n_axes = self.n_dims + (spectral_axis is not None)
+        if inp.ndim < model_n_axes:
+            raise ValueError(f"Target data should at least be of {model_n_axes} dimensions, but its shape is {inp.shape}")
+
+        batch_length = inp.shape[0]
         if tgt.ndim == (inp.ndim - 1):
-            tgt = np.tile(tgt[None, ...], [num_imgs, *np.ones_like(tgt.shape)])
+            tgt = np.tile(tgt[None, ...], [batch_length, *np.ones_like(tgt.shape)])
 
         if inp.shape != tgt.shape:
             raise ValueError(
@@ -61,7 +74,7 @@ class Supervised(Denoiser):
         if strategy.lower() == "pixel-mask":
             mask_tst = get_random_pixel_mask(inp.shape, mask_pixel_ratio=num_tst_ratio)
         elif strategy.lower() == "self-similar":
-            mask_tst = get_random_image_indices(num_imgs, num_tst_ratio=num_tst_ratio)
+            mask_tst = get_random_image_indices(batch_length, num_tst_ratio=num_tst_ratio)
         else:
             raise ValueError(f"Strategy {strategy} not implemented. Please choose one of: ['pixel-mask', 'self-similar']")
 

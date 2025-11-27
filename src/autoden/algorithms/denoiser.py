@@ -317,6 +317,39 @@ class Denoiser(ABC):
                 warn(f"Invalid regularization {self.reg_val} (Type: {type(self.reg_val)}), disabling regularization.")
             return None
 
+    def _prepare_spectral_axis(self, data: NDArray, spectral_axis: int | None) -> tuple[NDArray, int | None]:
+        is_complex = np.iscomplexobj(data)
+        expected_spectral_axis = -self.n_dims - 1
+
+        if spectral_axis is not None:
+            data = np.moveaxis(data, spectral_axis, expected_spectral_axis)
+            spectral_axis = expected_spectral_axis
+
+            if is_complex:
+                data = np.concatenate((data.real, data.imag), axis=spectral_axis)
+        elif is_complex:
+            spectral_axis = expected_spectral_axis
+            data = np.stack((data.real, data.imag), axis=spectral_axis)
+
+        if spectral_axis is not None:
+            req_ch = data.shape[spectral_axis]
+            try:
+                model_ch_in = self._get_model_init_param("n_channels_in")
+                model_ch_out = self._get_model_init_param("n_channels_out")
+
+                if req_ch != model_ch_in or req_ch != model_ch_out:
+                    raise ValueError(
+                        f"Required channels: {req_ch}, while model's channels are: in = {model_ch_in}, out = {model_ch_out}"
+                    )
+            except ValueError as exc:
+                warn(
+                    f"Required channels: {req_ch}, but could not determine the model's number"
+                    " of input/output channels (not a `SerializableModel`). This could lead to unexpected results."
+                    f" This was originated from: {exc}"
+                )
+
+        return data, spectral_axis
+
     def _save_state(self, epoch_num: int, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
             raise ValueError("Directory for saving epochs not specified")

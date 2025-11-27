@@ -22,7 +22,13 @@ class DIP(Denoiser):
     """Deep image prior."""
 
     def prepare_data(
-        self, tgt: NDArray, num_tst_ratio: float = 0.2, average_redundant: bool = False
+        self,
+        tgt: NDArray,
+        inp: NDArray | None = None,
+        *,
+        num_tst_ratio: float = 0.2,
+        average_redundant: bool = False,
+        spectral_axis: int | None = None,
     ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data.
@@ -32,12 +38,20 @@ class DIP(Denoiser):
         tgt : NDArray
             The target image array. The shape of the output noise array will match
             the spatial dimensions of this array.
+        inp : NDArray | None, optional
+            The input image array. If provided, it will be used as the initial input
+            for the DIP algorithm. If None, a random noise array will be generated.
+            Default is None.
         num_tst_ratio : float, optional
             The ratio of the test set size to the total dataset size.
             Default is 0.2.
         average_redundant : bool, optional
             If True, average redundant realizations in the target array to match the
             expected number of dimensions. Default is False.
+        spectral_axis : int | None, optional
+            The axis of the target array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
 
         Returns
         -------
@@ -55,12 +69,18 @@ class DIP(Denoiser):
         algorithm. It also generates a mask array indicating the training pixels based
         on the provided ratio.
         """
-        if tgt.ndim < self.n_dims:
-            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {tgt.shape}")
-        if average_redundant and tgt.ndim > self.n_dims:
-            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -self.n_dims)))
+        tgt, spectral_axis = self._prepare_spectral_axis(tgt, spectral_axis)
+        model_n_axes = self.n_dims + (spectral_axis is not None)
 
-        inp = np.random.normal(size=tgt.shape[-self.n_dims :], scale=0.25).astype(tgt.dtype)
+        if tgt.ndim < model_n_axes:
+            raise ValueError(f"Target data should at least be of {model_n_axes} dimensions, but its shape is {tgt.shape}")
+
+        if average_redundant and tgt.ndim > model_n_axes:
+            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -model_n_axes)))
+
+        if inp is None:
+            inp = np.random.normal(size=tgt.shape[-model_n_axes:], scale=0.25).astype(tgt.dtype)
+
         mask_trn = get_random_pixel_mask(tgt.shape, mask_pixel_ratio=num_tst_ratio)
         return inp, tgt, mask_trn
 
