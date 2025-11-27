@@ -317,22 +317,22 @@ class Denoiser(ABC):
                 warn(f"Invalid regularization {self.reg_val} (Type: {type(self.reg_val)}), disabling regularization.")
             return None
 
-    def _prepare_spectral_axis(self, data: NDArray, spectral_axis: int | None) -> tuple[NDArray, int | None]:
+    def _prepare_channel_axis(self, data: NDArray, channel_axis: int | None) -> tuple[NDArray, int | None]:
         is_complex = np.iscomplexobj(data)
-        expected_spectral_axis = -self.n_dims - 1
+        expected_channel_axis = -self.n_dims - 1
 
-        if spectral_axis is not None:
-            data = np.moveaxis(data, spectral_axis, expected_spectral_axis)
-            spectral_axis = expected_spectral_axis
+        if channel_axis is not None:
+            data = np.moveaxis(data, channel_axis, expected_channel_axis)
+            channel_axis = expected_channel_axis
 
             if is_complex:
-                data = np.concatenate((data.real, data.imag), axis=spectral_axis)
+                data = np.concatenate((data.real, data.imag), axis=channel_axis)
         elif is_complex:
-            spectral_axis = expected_spectral_axis
-            data = np.stack((data.real, data.imag), axis=spectral_axis)
+            channel_axis = expected_channel_axis
+            data = np.stack((data.real, data.imag), axis=channel_axis)
 
-        if spectral_axis is not None:
-            req_ch = data.shape[spectral_axis]
+        if channel_axis is not None:
+            req_ch = data.shape[channel_axis]
             try:
                 model_ch_in = self._get_model_init_param("n_channels_in")
                 model_ch_out = self._get_model_init_param("n_channels_out")
@@ -348,7 +348,15 @@ class Denoiser(ABC):
                     f" This was originated from: {exc}"
                 )
 
-        return data, spectral_axis
+        return data, channel_axis
+
+    def _move_output_channel_axis(self, data: NDArray, channel_axis_dst: int) -> NDArray:
+        channel_ax_out = -self.n_dims - 1 if self.n_channels_out > 1 else None
+        if channel_ax_out is None:
+            warn("Requested a destination for spectral axis, but the output is single-channel")
+        else:
+            data = np.moveaxis(data, source=channel_ax_out, destination=channel_axis_dst)
+        return data
 
     def _save_state(self, epoch_num: int, optim_state: Mapping, is_best: bool = False) -> None:
         if self.save_epochs_dir is None:
@@ -388,13 +396,15 @@ class Denoiser(ABC):
         fig.tight_layout()
         plt.show(block=False)
 
-    def infer(self, inp: NDArray) -> NDArray:
+    def infer(self, inp: NDArray, channel_axis_dst: int | None = None) -> NDArray:
         """Inference, given an initial stack of images.
 
         Parameters
         ----------
         inp : NDArray
             The input stack of images
+        channel_axis_dst : int | None, optional
+            The desired channel axis for the output. If None, the output will have the same channel axis as the input.
 
         Returns
         -------
@@ -405,8 +415,8 @@ class Denoiser(ABC):
         if self.data_sb is not None:
             inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
-        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
 
         self.model.eval()
         with pt.inference_mode():
@@ -416,6 +426,9 @@ class Denoiser(ABC):
         # Rescale output
         if self.data_sb is not None:
             output = (output + self.data_sb.bias_out) / self.data_sb.scale_out
+
+        if channel_axis_dst is not None:
+            output = self._move_output_channel_axis(output, channel_axis_dst)
 
         return output
 
@@ -454,14 +467,14 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
-        spectral_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        channel_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
-        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
+        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
 
-        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
-        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
+        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
         dset_trn_d = DatasetsList((inp_trn_d, tgt_trn_d), augmentation=self.augmentation)
@@ -575,16 +588,16 @@ class Denoiser(ABC):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
-        spectral_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        channel_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
-        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt)
+        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
 
         mask_trn = np.logical_not(mask_tst)
 
-        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None)
-        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_tgt, dtype=None)
+        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
+        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
 
         dset_d = DatasetsList((inp_d, tgt_d, mask_trn_d, mask_tst_d), augmentation=self.augmentation)
         num_instances = len(dset_d)

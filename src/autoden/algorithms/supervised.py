@@ -21,7 +21,7 @@ class Supervised(Denoiser):
         tgt: NDArray,
         num_tst_ratio: float = 0.2,
         strategy: str = "pixel-mask",
-        spectral_axis: int | None = None,
+        channel_axis: int | None = None,
     ) -> tuple[NDArray, NDArray, NDArray | list[int]]:
         """
         Prepare input data for training.
@@ -42,7 +42,7 @@ class Supervised(Denoiser):
             - "pixel-mask": Use randomly chosen pixels in the images as test set.
             - "self-similar": Use entire randomly chosen images as test set.
             Default is "pixel-mask".
-        spectral_axis : int | None, optional
+        channel_axis : int | None, optional
             The axis of the target array that corresponds to the spectral dimension.
             If None, the spectral dimension is assumed to not be present.
             Default is None.
@@ -55,10 +55,10 @@ class Supervised(Denoiser):
             - The target data array.
             - Either the mask array indicating the testing pixels or the list of test indices.
         """
-        inp, _ = self._prepare_spectral_axis(inp, spectral_axis)
-        tgt, spectral_axis = self._prepare_spectral_axis(tgt, spectral_axis)
+        inp, _ = self._prepare_channel_axis(inp, channel_axis)
+        tgt, channel_axis = self._prepare_channel_axis(tgt, channel_axis)
 
-        model_n_axes = self.n_dims + (spectral_axis is not None)
+        model_n_axes = self.n_dims + (channel_axis is not None)
         if inp.ndim < model_n_axes:
             raise ValueError(f"Target data should at least be of {model_n_axes} dimensions, but its shape is {inp.shape}")
 

@@ -14,7 +14,7 @@ from torch.utils.data import Dataset
 
 
 def data_to_tensor(
-    data: NDArray, device: str | None, n_dims: int = 2, spectral_axis: int | None = None, dtype: DTypeLike | None = np.float32
+    data: NDArray, device: str | None, n_dims: int = 2, channel_axis: int | None = None, dtype: DTypeLike | None = np.float32
 ) -> pt.Tensor:
     """
     Convert a NumPy array to a PyTorch tensor.
@@ -27,8 +27,8 @@ def data_to_tensor(
         The device to which the tensor should be moved (e.g., 'cpu', 'cuda').
     n_dims : int, optional
         The number of dimensions to consider for the data shape, by default 2.
-    spectral_axis : int or None, optional
-        The axis along which the spectral data is located, by default None.
+    channel_axis : int or None, optional
+        The axis along which the channels are stacked, by default None.
     dtype : DTypeLike or None, optional
         The data type to which the data should be converted, by default np.float32.
 
@@ -39,14 +39,14 @@ def data_to_tensor(
 
     Notes
     -----
-    If `spectral_axis` is provided, the data is moved to the specified axis.
+    If `channel_axis` is provided, the data is moved to the specified axis.
     Otherwise, the data is expanded to include an additional dimension.
     The data is then reshaped and converted to the specified data type before
     being converted to a PyTorch tensor and moved to the specified device.
     """
-    if spectral_axis is not None:
-        num_channels = data.shape[spectral_axis]
-        data = np.moveaxis(data, spectral_axis, -n_dims - 1)
+    if channel_axis is not None:
+        num_channels = data.shape[channel_axis]
+        data = np.moveaxis(data, channel_axis, -n_dims - 1)
     else:
         num_channels = 1
         data = np.expand_dims(data, -n_dims - 1)
@@ -461,7 +461,7 @@ class DatasetImagesStack(DataHandler):
         files_pattern: str | Path,
         device: str,
         n_dims: int = 2,
-        spectral_axis: int | None = None,
+        channel_axis: int | None = None,
         dtype: DTypeLike = np.float32,
         verbose: bool = False,
     ) -> None:
@@ -472,7 +472,7 @@ class DatasetImagesStack(DataHandler):
             print(f"{self.__class__.__name__}: Found the following images: {self.paths}")
         self.device = device
         self.n_dims = n_dims
-        self.spectral_axis = spectral_axis
+        self.channel_axis = channel_axis
         self.dtype = dtype
         self.verbose = verbose
 
@@ -487,11 +487,11 @@ class DatasetImagesStack(DataHandler):
 
     def __getitem__(self, index: int) -> pt.Tensor:
         img = iio.imread(str(self.paths[index]))
-        return data_to_tensor(img, device=self.device, n_dims=self.n_dims, spectral_axis=self.spectral_axis, dtype=self.dtype)
+        return data_to_tensor(img, device=self.device, n_dims=self.n_dims, channel_axis=self.channel_axis, dtype=self.dtype)
 
     def __getitems__(self, indices: Any) -> pt.Tensor:
         img = np.stack([iio.imread(str(self.paths[ii])) for ii in indices], axis=0)
-        return data_to_tensor(img, device=self.device, n_dims=self.n_dims, spectral_axis=self.spectral_axis, dtype=self.dtype)
+        return data_to_tensor(img, device=self.device, n_dims=self.n_dims, channel_axis=self.channel_axis, dtype=self.dtype)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -511,7 +511,7 @@ class DatasetNumpy(DataHandler):
         data: NDArray,
         device: str,
         n_dims: int = 2,
-        spectral_axis: int | None = None,
+        channel_axis: int | None = None,
         dtype: DTypeLike = np.float32,
         verbose: bool = False,
         pre_load_device: bool = True,
@@ -520,7 +520,7 @@ class DatasetNumpy(DataHandler):
 
         self.device = device
         self.n_dims = n_dims
-        self.spectral_axis = spectral_axis
+        self.channel_axis = channel_axis
         self.dtype = dtype
         self.verbose = verbose
         self.pre_load_device = pre_load_device
@@ -529,7 +529,7 @@ class DatasetNumpy(DataHandler):
 
         device_to_use = self.device if self.pre_load_device else None
         self.data = data_to_tensor(
-            data, device=device_to_use, n_dims=self.n_dims, spectral_axis=self.spectral_axis, dtype=self.dtype
+            data, device=device_to_use, n_dims=self.n_dims, channel_axis=self.channel_axis, dtype=self.dtype
         )
 
     def __getitem__(self, index: Any) -> pt.Tensor:

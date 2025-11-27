@@ -169,10 +169,10 @@ class N2V(Denoiser):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        spectral_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
 
-        inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
-        inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims, spectral_axis=spectral_ax_inp)
+        inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train
