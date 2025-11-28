@@ -317,6 +317,23 @@ class Denoiser(ABC):
                 warn(f"Invalid regularization {self.reg_val} (Type: {type(self.reg_val)}), disabling regularization.")
             return None
 
+    def _check_channel_axis_size(self, data: NDArray, channel_axis: int | None, param_name: str) -> None:
+        try:
+            model_ch_size = self._get_model_init_param(param_name)
+        except ValueError as exc:
+            warn(
+                "Could not determine the model's number of input/output channels (not a `SerializableModel`)."
+                f" This could lead to unexpected results. This was originated from: {exc}"
+            )
+            return
+
+        if channel_axis is not None:
+            req_ch = data.shape[channel_axis]
+            if req_ch != model_ch_size:
+                raise ValueError(f"Required channels: {req_ch}, while model's channels are: {param_name} = {model_ch_size}")
+        elif model_ch_size > 1:
+            raise ValueError(f"Model's channels are: {param_name} = {model_ch_size}, but no channel axis was provided")
+
     def _prepare_channel_axis(self, data: NDArray, channel_axis: int | None) -> tuple[NDArray, int | None]:
         is_complex = np.iscomplexobj(data)
         expected_channel_axis = -self.n_dims - 1
@@ -330,23 +347,6 @@ class Denoiser(ABC):
         elif is_complex:
             channel_axis = expected_channel_axis
             data = np.stack((data.real, data.imag), axis=channel_axis)
-
-        if channel_axis is not None:
-            req_ch = data.shape[channel_axis]
-            try:
-                model_ch_in = self._get_model_init_param("n_channels_in")
-                model_ch_out = self._get_model_init_param("n_channels_out")
-
-                if req_ch != model_ch_in or req_ch != model_ch_out:
-                    raise ValueError(
-                        f"Required channels: {req_ch}, while model's channels are: in = {model_ch_in}, out = {model_ch_out}"
-                    )
-            except ValueError as exc:
-                warn(
-                    f"Required channels: {req_ch}, but could not determine the model's number"
-                    " of input/output channels (not a `SerializableModel`). This could lead to unexpected results."
-                    f" This was originated from: {exc}"
-                )
 
         return data, channel_axis
 

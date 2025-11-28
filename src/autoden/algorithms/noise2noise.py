@@ -59,6 +59,8 @@ class N2N(Denoiser):
         indicating the training pixels based on the provided ratio.
         """
         inp, channel_axis = self._prepare_channel_axis(inp, channel_axis)
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_in")
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_out")
 
         model_n_axes = self.n_dims + (channel_axis is not None)
         if inp.ndim < model_n_axes:

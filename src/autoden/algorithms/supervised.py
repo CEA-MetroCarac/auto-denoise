@@ -55,18 +55,25 @@ class Supervised(Denoiser):
             - The target data array.
             - Either the mask array indicating the testing pixels or the list of test indices.
         """
-        inp, _ = self._prepare_channel_axis(inp, channel_axis)
-        tgt, channel_axis = self._prepare_channel_axis(tgt, channel_axis)
+        inp, channel_axis_inp = self._prepare_channel_axis(inp, channel_axis)
+        self._check_channel_axis_size(inp, channel_axis_inp, "n_channels_in")
 
-        model_n_axes = self.n_dims + (channel_axis is not None)
-        if inp.ndim < model_n_axes:
-            raise ValueError(f"Target data should at least be of {model_n_axes} dimensions, but its shape is {inp.shape}")
+        model_inp_axes = self.n_dims + (self.n_channels_in > 1)
+        if inp.ndim < model_inp_axes:
+            raise ValueError(f"Input data should at least be of {model_inp_axes} dimensions, but its shape is {inp.shape}")
+
+        tgt, channel_axis_tgt = self._prepare_channel_axis(tgt, channel_axis)
+        self._check_channel_axis_size(tgt, channel_axis_tgt, "n_channels_out")
+
+        model_tgt_axes = self.n_dims + (self.n_channels_out > 1)
+        if tgt.ndim < model_tgt_axes:
+            raise ValueError(f"Target data should at least be of {model_tgt_axes} dimensions, but its shape is {tgt.shape}")
 
         batch_length = inp.shape[0]
         if tgt.ndim == (inp.ndim - 1):
             tgt = np.tile(tgt[None, ...], [batch_length, *np.ones_like(tgt.shape)])
 
-        if inp.shape != tgt.shape:
+        if inp.shape[-self.n_dims :] != tgt.shape[-self.n_dims :]:
             raise ValueError(
                 f"Input and target data must have the same shape. Input shape: {inp.shape}, Target shape: {tgt.shape}"
             )

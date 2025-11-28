@@ -69,17 +69,25 @@ class DIP(Denoiser):
         algorithm. It also generates a mask array indicating the training pixels based
         on the provided ratio.
         """
-        tgt, channel_axis = self._prepare_channel_axis(tgt, channel_axis)
-        model_n_axes = self.n_dims + (channel_axis is not None)
+        tgt, channel_axis_tgt = self._prepare_channel_axis(tgt, channel_axis)
+        self._check_channel_axis_size(tgt, channel_axis_tgt, "n_channels_out")
 
-        if tgt.ndim < model_n_axes:
-            raise ValueError(f"Target data should at least be of {model_n_axes} dimensions, but its shape is {tgt.shape}")
+        model_tgt_axes = self.n_dims + (self.n_channels_out > 1)
+        if tgt.ndim < model_tgt_axes:
+            raise ValueError(f"Target data should at least be of {model_tgt_axes} dimensions, but its shape is {tgt.shape}")
 
-        if average_redundant and tgt.ndim > model_n_axes:
-            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -model_n_axes)))
+        if average_redundant and tgt.ndim > model_tgt_axes:
+            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -model_tgt_axes)))
 
         if inp is None:
-            inp = np.random.normal(size=tgt.shape[-model_n_axes:], scale=0.25).astype(tgt.dtype)
+            inp = np.random.normal(size=tgt.shape[-model_tgt_axes:], scale=0.25).astype(tgt.dtype)
+        else:
+            inp, channel_axis_inp = self._prepare_channel_axis(inp, channel_axis)
+            self._check_channel_axis_size(inp, channel_axis_inp, "n_channels_inp")
+
+            model_inp_axes = self.n_dims + (self.n_channels_in > 1)
+            if inp.ndim < model_inp_axes:
+                raise ValueError(f"Input data should at least be of {model_inp_axes} dimensions, but its shape is {inp.shape}")
 
         mask_trn = get_random_pixel_mask(tgt.shape, mask_pixel_ratio=num_tst_ratio)
         return inp, tgt, mask_trn
