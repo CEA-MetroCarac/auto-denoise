@@ -53,6 +53,11 @@ def data_to_tensor(
     data_shape = data.shape[-n_dims:]
     data = data.reshape([-1, num_channels, *data_shape])
     if dtype is not None:
+        # # If complex, we promote the type to the lowest required and available precision
+        # # Deactivated for the moment, because we don't handle complex weights. We handle
+        # # this in the algorithm prepare functions.
+        # if np.iscomplexobj(data):
+        #     dtype = np.promote_types(dtype, np.complex64)
         data = data.astype(dtype)
     return pt.tensor(data, device=device)
 
