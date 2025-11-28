@@ -18,12 +18,28 @@ class MockModel(nn.Module):
         return self.param * x
 
 
+class MockSerializableModelRGB2D(MockModel):
+    """Mock serializable model that returns the input volumes it receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.init_params = dict(n_dims=2, n_channels_in=3, n_channels_out=3)
+
+
+class MockSerializableModelComplex2D(MockModel):
+    """Mock serializable model that returns the input volumes it receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.init_params = dict(n_dims=2, n_channels_in=2, n_channels_out=2)
+
+
 class MockSerializableModel3D(MockModel):
     """Mock serializable model that returns the input volumes it receives."""
 
     def __init__(self):
         super().__init__()
-        self.init_params = dict(n_dims=3)
+        self.init_params = dict(n_dims=3, n_channels_in=1, n_channels_out=1)
 
 
 class MockSerializableModel1D(MockModel):
@@ -31,4 +47,4 @@ class MockSerializableModel1D(MockModel):
 
     def __init__(self):
         super().__init__()
-        self.init_params = dict(n_dims=1)
+        self.init_params = dict(n_dims=1, n_channels_in=1, n_channels_out=1)
