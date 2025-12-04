@@ -38,7 +38,6 @@ imgs_noisy: NDArray = np.stack(
     [(img_orig + 20 * np.random.randn(*img_orig.shape)) for _ in tqdm(range(NUM_IMGS_TOT), desc="Create noisy images")],
     axis=0,
 )
-tst_inds = np.arange(NUM_IMGS_TRN, NUM_IMGS_TOT)
 
 print(f"Img orig -> [{img_orig.min()}, {img_orig.max()}], Img noisy -> [{imgs_noisy[0].min()}, {imgs_noisy[0].max()}]")
 print(f"Img shape: {img_orig.shape}")
@@ -110,10 +109,11 @@ Noise2Void is a self-supervised denoising method that can work with a single noi
 
 ```python
 denoiser_n2v = ad.N2V(model=deepcopy(model), reg_val=REG_TV_VAL)
-denoiser_n2v.train(np.moveaxis(imgs_noisy, -1, -3), tst_inds=tst_inds, epochs=EPOCHS)
+n2v_data = denoiser_sup.prepare_data(imgs_noisy, img_orig, num_tst_ratio=NUM_IMGS_TST / NUM_IMGS_TOT, channel_axis=-1)
+denoiser_n2v.train(*n2v_data, epochs=EPOCHS)
 ```
 
-`Noise2Void` currently doesn't have a `prepare_data` method, so we have to reorder the axes ourselves. This might change in the future.
+As for the `Supervised` algorithm, we use the parameter `channel_axis` to specify which is the RGB axis.
 
 ### Noise2Noise (N2N)
 
@@ -125,7 +125,7 @@ n2n_data = denoiser_n2n.prepare_data(imgs_noisy, channel_axis=-1)
 denoiser_n2n.train(*n2n_data, epochs=EPOCHS)
 ```
 
-As for the `Supervised` algorithm, we use the parameter `channel_axis` to specify which is the RGB axis.
+As for the `Supervised` and `Noise2Void` algorithms, we use the parameter `channel_axis` to specify which is the RGB axis.
 
 #### Batched processing
 
@@ -166,7 +166,7 @@ dip_data = denoiser_dip.prepare_data(imgs_noisy, channel_axis=-1)
 denoiser_dip.train(*dip_data, epochs=EPOCHS * 3)
 ```
 
-As for the `Supervised` and `Noise2Noise` algorithms, we use the parameter `channel_axis` to specify which is the RGB axis.
+As for the other algorithms, we use the parameter `channel_axis` to specify which is the RGB axis.
 
 !!! note "Regularization weight"
     The DIP is more sensitive to the regularization weight, and it can be adjusted to obtain better results.
@@ -175,6 +175,9 @@ As for the `Supervised` and `Noise2Noise` algorithms, we use the parameter `chan
 
 Inference is the process of using the trained models to denoise new images. The `infer` method takes the noisy images as input and outputs the denoised images. The `infer` method takes a `channel_axis_dst` argument that allows us to output data in the same format as it was passed to `prepare_data`, i.e., move back the multi-channel axis to its original position.
 
+!!! note "Inference input"
+    The output of the `prepare_data` function is needed for inference.
+
 ### Supervised Denoiser Inference
 
 ```python
@@ -182,22 +185,22 @@ den_sup = denoiser_sup.infer(sup_data[0], channel_axis_dst=-1).mean(0)
 ```
 
 !!! note "Inference input"
-    The output of the `prepare_data` function is also preferred for the inference of Supervised, even though the noisy images should still work for the foreseeable future.
+    The output of the `prepare_data` function is preferred for the inference of `Supervised`, even though the noisy images should also work for the foreseeable future, provided that the axes are correctly organized.
 
 ### Noise2Void (N2V) Inference
 
 ```python
-den_n2v = denoiser_n2v.infer(np.moveaxis(imgs_noisy, -1, -3), channel_axis_dst=-1).mean(0)
+den_n2v = denoiser_n2v.infer(n2v_data[0], channel_axis_dst=-1).mean(0)
 ```
+
+!!! note "Inference input"
+    The output of the `prepare_data` function is preferred for the inference of `Noise2Noise`, even though the noisy images should also work for the foreseeable future, provided that the axes are correctly organized.
 
 ### Noise2Noise (N2N) Inference
 
 ```python
 den_n2n = denoiser_n2n.infer(n2n_data[0], channel_axis_dst=-1)
 ```
-
-!!! note "Inference input"
-    The output of the `prepare_data` function is also needed for the inference of N2N.
 
 !!! note "Inference output"
     The `inference` function of N2N  automatically averages the splits, unless the `average_splits` flag is set to `False`.

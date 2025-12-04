@@ -98,7 +98,8 @@ Noise2Void is a self-supervised denoising method that can work with a single noi
 
 ```python
 denoiser_n2v = ad.N2V(model=net_params, reg_val=REG_TV_VAL)
-denoiser_n2v.train(imgs_noisy, epochs=EPOCHS, tst_inds=tst_inds)
+n2v_data = denoiser_n2v.prepare_data(imgs_noisy, num_tst_ratio=NUM_IMGS_TST / NUM_IMGS_TOT)
+denoiser_n2v.train(*n2v_data, epochs=EPOCHS)
 ```
 
 ### Noise2Noise (N2N)
@@ -156,27 +157,32 @@ denoiser_dip.train(*dip_data, epochs=EPOCHS)
 
 Inference is the process of using the trained models to denoise new images. The `infer` method takes the noisy images as input and outputs the denoised images.
 
+!!! note "Inference input"
+    The output of the `prepare_data` function is needed or suggested the inference.
+
 ### Supervised Denoiser Inference
 
 ```python
 den_sup = denoiser_sup.infer(sup_data[0]).mean(0)
 ```
+
 !!! note "Inference input"
-    The output of the `prepare_data` function is also preferred for the inference of Supervised, even though the noisy images should still work for the foreseeable future.
+    The output of the `prepare_data` function is preferred for inference of `Supervised`, even though the noisy images should also work for the foreseeable future.
 
 ### Noise2Void (N2V) Inference
 
 ```python
-den_n2v = denoiser_n2v.infer(imgs_noisy).mean(0)
+den_n2v = denoiser_n2v.infer(n2v_data[0]).mean(0)
 ```
+
+!!! note "Inference input"
+    The output of the `prepare_data` function is preferred for inference of `Noise2Noise`, even though the noisy images should also work for the foreseeable future.
 
 ### Noise2Noise (N2N) Inference
 
 ```python
 den_n2n = denoiser_n2n.infer(n2n_data[0])
 ```
-!!! note "Inference input"
-    The output of the `prepare_data` function is also needed for the inference of N2N.
 
 !!! note "Inference output"
     The `inference` function of N2N  automatically averages the splits, unless the `average_splits` flag is set to `False`.
@@ -186,8 +192,6 @@ den_n2n = denoiser_n2n.infer(n2n_data[0])
 ```python
 den_dip = denoiser_dip.infer(dip_data[0])
 ```
-!!! note "Inference input"
-    The output of the `prepare_data` function is also needed for the inference of DIP.
 
 ## Visualizing the Results
 
