@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
 from autoden.algorithms.datasets import data_to_tensor
-from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, get_random_image_indices
 from autoden.losses import LossRegularizer
 from autoden.models.config import create_optimizer
 from autoden.models.param_utils import fix_invalid_gradient_values
@@ -70,6 +70,53 @@ def _random_probe_mask(
 class N2V(Denoiser):
     "Self-supervised denoising from single images."
 
+    def prepare_data(
+        self,
+        inp: NDArray,
+        num_tst_ratio: float = 0.2,
+        channel_axis: int | None = None,
+    ) -> tuple[NDArray, list[int]]:
+        """
+        Prepare input data for training.
+
+        Parameters
+        ----------
+        inp : NDArray
+            The input data to be used for training. This should be a NumPy array of shape (N, H, W), where N is the
+            number of samples, and H and W are the height and width of each sample, respectively.
+        num_tst_ratio : float, optional
+            The ratio of the input data to be used for testing. The remaining data will be used for training.
+            Default is 0.2.
+        channel_axis : int | None, optional
+            The axis of the input array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
+
+        Returns
+        -------
+        tuple[NDArray, NDArray, NDArray]
+            A tuple containing:
+            - The input data array.
+            - The mask array indicating the training pixels.
+
+        Notes
+        -----
+        This function generates input-target pairs based on the specified strategy. It also generates a mask array
+        indicating the training pixels based on the provided ratio.
+        """
+        inp, channel_axis = self._prepare_channel_axis(inp, channel_axis)
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_in")
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_out")
+
+        model_n_axes = self.n_dims + (channel_axis is not None)
+        if inp.ndim < model_n_axes:
+            raise ValueError(f"Target data should at least be of {model_n_axes + 1} dimensions, but its shape is {inp.shape}")
+
+        batch_length = inp.shape[0]
+        mask_tst = get_random_image_indices(batch_length, num_tst_ratio=num_tst_ratio)
+
+        return inp, mask_tst
+
     def train(
         self,
         inp: NDArray,
@@ -89,7 +136,7 @@ class N2V(Denoiser):
         inp : NDArray
             The input images, which will also be targets
         tst_inds : Sequence[int] | NDArray
-            The validation set indices
+            The validation set indices (indices if Sequence[int])
         epochs : int
             Number of training epochs
         mask_shape : int | Sequence[int] | NDArray
@@ -104,13 +151,13 @@ class N2V(Denoiser):
             The lower limit for the input data. If provided, the input data will be clipped to this limit.
             Default is None.
         """
-        num_imgs = inp.shape[0]
+        batch_length = inp.shape[0]
         tst_inds = np.array(tst_inds, dtype=int)
-        if np.any(tst_inds < 0) or np.any(tst_inds >= num_imgs):
+        if np.any(tst_inds < 0) or np.any(tst_inds >= batch_length):
             raise ValueError(
-                f"Each cross-validation index should be greater or equal than 0, and less than the number of images {num_imgs}"
+                f"Each cross-validation index should be greater or equal than 0, and less than the number of images {batch_length}"
             )
-        trn_inds = np.delete(np.arange(num_imgs), obj=tst_inds)
+        trn_inds = np.delete(np.arange(batch_length), obj=tst_inds)
 
         if self.data_sb is None:
             self.data_sb = compute_scaling_selfsupervised(inp)
@@ -169,8 +216,10 @@ class N2V(Denoiser):
         best_state = self.model.state_dict()
         best_optim = optim.state_dict()
 
-        inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims)
-        inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims)
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+
+        inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
 
         for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
             # Train

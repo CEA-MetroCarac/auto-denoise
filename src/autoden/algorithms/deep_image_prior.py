@@ -22,7 +22,13 @@ class DIP(Denoiser):
     """Deep image prior."""
 
     def prepare_data(
-        self, tgt: NDArray, num_tst_ratio: float = 0.2, average_redundant: bool = False
+        self,
+        tgt: NDArray,
+        inp: NDArray | None = None,
+        *,
+        num_tst_ratio: float = 0.2,
+        average_redundant: bool = False,
+        channel_axis: int | None = None,
     ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data.
@@ -32,12 +38,20 @@ class DIP(Denoiser):
         tgt : NDArray
             The target image array. The shape of the output noise array will match
             the spatial dimensions of this array.
+        inp : NDArray | None, optional
+            The input image array. If provided, it will be used as the initial input
+            for the DIP algorithm. If None, a random noise array will be generated.
+            Default is None.
         num_tst_ratio : float, optional
             The ratio of the test set size to the total dataset size.
             Default is 0.2.
         average_redundant : bool, optional
             If True, average redundant realizations in the target array to match the
             expected number of dimensions. Default is False.
+        channel_axis : int | None, optional
+            The axis of the target array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
 
         Returns
         -------
@@ -55,12 +69,26 @@ class DIP(Denoiser):
         algorithm. It also generates a mask array indicating the training pixels based
         on the provided ratio.
         """
-        if tgt.ndim < self.n_dims:
-            raise ValueError(f"Target data should at least be of {self.n_dims} dimensions, but its shape is {tgt.shape}")
-        if average_redundant and tgt.ndim > self.n_dims:
-            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -self.n_dims)))
+        tgt, channel_axis_tgt = self._prepare_channel_axis(tgt, channel_axis)
+        self._check_channel_axis_size(tgt, channel_axis_tgt, "n_channels_out")
 
-        inp = np.random.normal(size=tgt.shape[-self.n_dims :], scale=0.25).astype(tgt.dtype)
+        model_tgt_axes = self.n_dims + (self.n_channels_out > 1)
+        if tgt.ndim < model_tgt_axes:
+            raise ValueError(f"Target data should at least be of {model_tgt_axes} dimensions, but its shape is {tgt.shape}")
+
+        if average_redundant and tgt.ndim > model_tgt_axes:
+            tgt = tgt.mean(axis=tuple(np.arange(-tgt.ndim, -model_tgt_axes)))
+
+        if inp is None:
+            inp = np.random.normal(size=tgt.shape[-model_tgt_axes:], scale=0.25).astype(tgt.dtype)
+        else:
+            inp, channel_axis_inp = self._prepare_channel_axis(inp, channel_axis)
+            self._check_channel_axis_size(inp, channel_axis_inp, "n_channels_inp")
+
+            model_inp_axes = self.n_dims + (self.n_channels_in > 1)
+            if inp.ndim < model_inp_axes:
+                raise ValueError(f"Input data should at least be of {model_inp_axes} dimensions, but its shape is {inp.shape}")
+
         mask_trn = get_random_pixel_mask(tgt.shape, mask_pixel_ratio=num_tst_ratio)
         return inp, tgt, mask_trn
 
@@ -167,11 +195,14 @@ class DIP(Denoiser):
 
         mask_tst = np.logical_not(mask_trn)
 
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims)
-        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims)
+        channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
+        channel_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, dtype=None)
-        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, dtype=None)
+        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        tgt_t = data_to_tensor(tgt, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
+
+        mask_trn_t = data_to_tensor(mask_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
+        mask_tst_t = data_to_tensor(mask_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
 
         tgt_trn = tgt_t[mask_trn_t]
         tgt_tst = tgt_t[mask_tst_t]

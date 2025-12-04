@@ -20,6 +20,7 @@ nav:
   - License: license.md
 - Examples & Tutorials:
   - Denoising images & volumes: tutorials/denoising_imgs.md
+  - Denoising multi-channel signals: tutorials/denoising_multichannel.md
   - Noise2Inverse: tutorials/noise2inverse.md
   - Noise2Noise for spectra: tutorials/denoising_spectra.md
   - Regularization: tutorials/regularization.md

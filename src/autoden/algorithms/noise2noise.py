@@ -8,18 +8,19 @@ import numpy as np
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.denoiser import (
-    Denoiser,
-    compute_scaling_selfsupervised,
-    get_random_pixel_mask,
-)
+from autoden.algorithms.denoiser import Denoiser, compute_scaling_selfsupervised, get_random_pixel_mask
 
 
 class N2N(Denoiser):
     """Self-supervised denoising from pairs of images."""
 
     def prepare_data(
-        self, inp: NDArray, num_tst_ratio: float = 0.2, strategy: str = "1:X"
+        self,
+        inp: NDArray,
+        num_tst_ratio: float = 0.2,
+        strategy: str = "1:X",
+        channel_axis: int | None = None,
+        realizations_axis: int = 0,
     ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Prepare input data for training.
@@ -37,6 +38,12 @@ class N2N(Denoiser):
             - "1:X": Use the mean of the remaining samples as the target for each sample.
             - "X:1": Use the mean of the remaining samples as the input for each sample.
             Default is "1:X".
+        channel_axis : int | None, optional
+            The axis of the input array that corresponds to the spectral dimension.
+            If None, the spectral dimension is assumed to not be present.
+            Default is None.
+        realizations_axis : int, optional
+            The axis of the input array that corresponds to the redundant realizations dimension. Default is 0.
 
         Returns
         -------
@@ -51,13 +58,22 @@ class N2N(Denoiser):
         This function generates input-target pairs based on the specified strategy. It also generates a mask array
         indicating the training pixels based on the provided ratio.
         """
-        if inp.ndim < self.n_dims + 1:
-            raise ValueError(f"Target data should at least be of {self.n_dims + 1} dimensions, but its shape is {inp.shape}")
+        inp, channel_axis = self._prepare_channel_axis(inp, channel_axis)
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_in")
+        self._check_channel_axis_size(inp, channel_axis, "n_channels_out")
 
-        realizations_batch_axis = inp.ndim - self.n_dims - 1
+        model_n_axes = self.n_dims + (channel_axis is not None)
+        if inp.ndim < model_n_axes:
+            raise ValueError(f"Target data should at least be of {model_n_axes + 1} dimensions, but its shape is {inp.shape}")
 
-        inp_x = np.stack([np.delete(inp, obj=ii, axis=0).mean(axis=0) for ii in range(len(inp))], axis=realizations_batch_axis)
-        inp = inp.swapaxes(0, realizations_batch_axis)
+        # This will be the destination position of the axis
+        realizations_dst_axis = inp.ndim - model_n_axes - 1
+
+        inp_x = np.stack(
+            [np.delete(inp, obj=ii, axis=realizations_axis).mean(axis=realizations_axis) for ii in range(len(inp))],
+            axis=realizations_dst_axis,
+        )
+        inp = np.moveaxis(inp, source=realizations_axis, destination=realizations_dst_axis)
 
         if strategy.upper() == "1:X":
             tmp_inp = inp
@@ -132,9 +148,6 @@ class N2N(Denoiser):
         inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
         tgt = tgt * self.data_sb.scale_tgt - self.data_sb.bias_tgt
 
-        tmp_inp = inp.astype(np.float32)
-        tmp_tgt = tgt.astype(np.float32)
-
         reg = self._get_regularization()
         losses = self._train_pixelmask_batched(
             inp=inp,
@@ -154,7 +167,7 @@ class N2N(Denoiser):
 
         return losses
 
-    def infer(self, inp: NDArray, average_splits: bool = True) -> NDArray:
+    def infer(self, inp: NDArray, average_splits: bool = True, channel_axis_dst: int | None = None) -> NDArray:
         """
         Perform inference on the input data.
 
@@ -164,6 +177,8 @@ class N2N(Denoiser):
             The input data to perform inference on. It is expected to have an extra dimension including the different splits.
         average_splits : bool, optional
             If True, the splits are averaged. Default is True.
+        channel_axis_dst : int | None, optional
+            The desired channel axis for the output. If None, the output will have the same channel axis as the input.
 
         Returns
         -------
@@ -175,7 +190,9 @@ class N2N(Denoiser):
         If `self.batch_size` is set, the input data is processed in batches to avoid memory issues.
         """
         inp_shape = inp.shape
-        inp = inp.reshape([inp_shape[0] * inp_shape[1], *inp_shape[2:]])
+        dims_to_preserve = self.n_dims + (self.n_channels_in > 1)
+        inp = inp.reshape([-1, *inp_shape[-dims_to_preserve:]])
+
         if self.batch_size is not None:
             out = []
             for b in tqdm(range(0, inp.shape[0], self.batch_size), desc="Inference batch"):
@@ -184,7 +201,12 @@ class N2N(Denoiser):
         else:
             out = super().infer(inp)
         out = out.reshape(inp_shape)
+
         if average_splits:
-            realization_batch_axis = -self.n_dims - 1
+            realization_batch_axis = -dims_to_preserve - 1
             out = out.mean(axis=realization_batch_axis)
+
+        if channel_axis_dst is not None:
+            out = self._move_output_channel_axis(out, channel_axis_dst)
+
         return out
