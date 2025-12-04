@@ -17,7 +17,7 @@ import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.datasets import data_to_tensor, get_batches, random_flips, Augmentation, DatasetNumpy, DatasetsList
+from autoden.algorithms.datasets import data_to_tensor, get_batches, Augmentation, DatasetNumpy, DatasetsList
 from autoden.losses import LossRegularizer, LossTV
 from autoden.models.config import NetworkParams, SerializableModel, create_network, create_optimizer
 from autoden.models.io import load_model_state, save_model_state
@@ -91,7 +91,7 @@ def get_random_pixel_mask(data_shape: Sequence[int] | NDArray, mask_pixel_ratio:
     return data_mask
 
 
-def get_random_image_indices(num_imgs: int, num_tst_ratio: float) -> list:
+def get_random_image_indices(num_imgs: int, num_tst_ratio: float) -> list[int]:
     """Return a list of random indices from 0 to num_imgs - 1.
 
     Parameters
