@@ -126,7 +126,7 @@ class N2V(Denoiser):
         mask_shape: int | Sequence[int] | NDArray = 1,
         ratio_blind_spot: float = 0.015,
         learning_rate: float = 1e-3,
-        algo: str = "adam",
+        optimizer: str = "adam",
         lower_limit: float | NDArray | None = None,
     ) -> dict[str, NDArray]:
         """Self-supervised training.
@@ -145,7 +145,7 @@ class N2V(Denoiser):
             Ratio of the blind spot size to the total image size, by default 0.015.
         learning_rate : float
             Learning rate for the optimizer, by default 1e-3.
-        algo : str, optional
+        optimizer : str, optional
             Optimizer algorithm to use, by default "adam"
         lower_limit : float | NDArray | None, optional
             The lower limit for the input data. If provided, the input data will be clipped to this limit.
@@ -176,13 +176,13 @@ class N2V(Denoiser):
             mask_shape=mask_shape,
             ratio_blind_spot=ratio_blind_spot,
             learning_rate=learning_rate,
-            algo=algo,
+            optimizer=optimizer,
             regularizer=reg,
             lower_limit=lower_limit,
         )
 
         if self.verbose:
-            self._plot_loss_curves(losses, f"Self-supervised {self.__class__.__name__} {algo.upper()}")
+            self._plot_loss_curves(losses, f"Self-supervised {self.__class__.__name__} {optimizer.upper()}")
 
         return losses
 
@@ -194,7 +194,7 @@ class N2V(Denoiser):
         mask_shape: int | Sequence[int] | NDArray,
         ratio_blind_spot: float,
         learning_rate: float = 1e-3,
-        algo: str = "adam",
+        optimizer: str = "adam",
         regularizer: LossRegularizer | None = None,
         lower_limit: float | NDArray | None = None,
         loss_track_type: str = "tst",
@@ -206,7 +206,7 @@ class N2V(Denoiser):
         # sbi stands for: Scale and bias invariant loss
 
         loss_data_fn = pt.nn.MSELoss(reduction="mean")
-        optim = create_optimizer(self.model, algo=algo, learning_rate=learning_rate)
+        optim = create_optimizer(self.model, algo=optimizer, learning_rate=learning_rate)
 
         if lower_limit is not None and self.data_sb is not None:
             lower_limit = lower_limit * self.data_sb.scale_inp - self.data_sb.bias_inp
@@ -221,7 +221,7 @@ class N2V(Denoiser):
         inp_trn_t = data_to_tensor(inp_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
         inp_tst_t = data_to_tensor(inp_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
 
-        for epoch in tqdm(range(epochs), desc=f"Training {algo.upper()}"):
+        for epoch in tqdm(range(epochs), desc=f"Training {optimizer.upper()}"):
             # Train
             self.model.train()
 
