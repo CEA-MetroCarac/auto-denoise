@@ -5,6 +5,7 @@ Supervised denoiser implementation.
 """
 
 from collections.abc import Sequence
+from typing import overload, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,7 +21,7 @@ class Supervised(Denoiser):
         inp: NDArray,
         tgt: NDArray,
         num_tst_ratio: float = 0.2,
-        strategy: str = "pixel-mask",
+        strategy: Literal["pixel-mask", "self-similar"] = "pixel-mask",
         channel_axis: int | None = None,
     ) -> tuple[NDArray, NDArray, NDArray | list[int]]:
         """
