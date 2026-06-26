@@ -8,6 +8,7 @@ from torch.nn.functional import pad
 from torch.nn.modules.loss import _Loss
 
 from autoden.transforms._wavelets import dwtn, swtn, wavelet_norm
+from autoden.transforms.custom_filters import CustomFilterDecomposition
 
 
 def _differentiate(inp: pt.Tensor, dim: int, position: str) -> pt.Tensor:
@@ -232,6 +233,55 @@ class LossSWTN(LossRegularizer):
             wl_val.append(wl_lvl_val)
 
         loss_vals: pt.Tensor = self.lambda_val * pt.stack(wl_val, dim=0).sum(dim=0) / ((self.level + self.min_approx) ** 0.5)
+
+        if self.reduction.lower() == "mean":
+            return loss_vals.mean()
+        elif self.reduction.lower() == "sum":
+            return loss_vals.sum()
+        else:
+            return loss_vals
+
+
+class LossCCF(LossRegularizer):
+    """Custom convolutional filter decomposition loss function."""
+
+    def __init__(
+        self,
+        lambda_val: float,
+        filters: pt.Tensor,
+        weights: pt.Tensor,
+        size_average=None,
+        reduce=None,
+        reduction: str = "mean",
+        min_approx: bool = False,
+    ) -> None:
+        super().__init__(size_average, reduce, reduction)
+        self.lambda_val = lambda_val
+        self.filters = filters
+        self.weights = weights
+        self.min_approx = min_approx
+
+        self.n_dims = filters.ndim - 2
+
+        if filters.shape[0] != weights.numel():
+            raise ValueError(
+                f"The number of convolution kernels ({filters.shape[0]}) does"
+                f" not match the number of weights ({weights.numel()})"
+            )
+
+        self.filters = filters.reshape([1, -1, *(1,) * self.n_dims])
+
+    def forward(self, img: pt.Tensor) -> pt.Tensor:
+        """Compute decomposition on current batch."""
+        _check_input_tensor(img, self.n_dims)
+        axes = list(range(-(self.n_dims + 1), 0))
+
+        decomp = CustomFilterDecomposition(kernels=self.filters[:, not self.min_approx :, ...], device=img.device)
+        filts = self.filters[:, not self.min_approx :, ...].to(img.device)
+
+        coeffs = decomp.analyze(img)
+
+        loss_vals: pt.Tensor = self.lambda_val * (filts * coeffs).abs().sum(1).sum(axes)
 
         if self.reduction.lower() == "mean":
             return loss_vals.mean()
