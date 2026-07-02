@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from autoden.algorithms.datasets import DatasetNumpy, DatasetsList, AugmentationGaussianNoise
-from autoden.transforms.custom_filters import ConvolutionalDecompositionBase
+from autoden.transforms.custom_filters import ConvolutionalDecompositionBase, CustomFilterDecomposition
 
 
 def _fold_fourier_quadrants(fourier_data: NDArray, n_dims: int) -> tuple[NDArray, NDArray]:
@@ -80,6 +80,12 @@ class LearnableStiefelFilterBank(ConvolutionalDecompositionBase):
         q, max_q = _fold_fourier_quadrants(power, n_dims=self.n_dims)
         peaks_dist_origin = np.linalg.norm(max_q, ord=ord, axis=0)
         return peaks_dist_origin / np.linalg.norm(q.shape[-self.n_dims :], ord=ord)
+
+    def get_custom_decomposition(self, device: str | pt.DeviceObjType | None = None) -> CustomFilterDecomposition:
+        if device is None:
+            device = str(self.get_kernels().device)
+        device = str(device)
+        return CustomFilterDecomposition(self.get_kernels().clone().to(device), device)
 
     # ── Analysis and synthesis ────────────────────────────────────────────────
     def reconstruct(self, x: pt.Tensor) -> pt.Tensor:
