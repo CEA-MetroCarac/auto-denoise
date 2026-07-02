@@ -269,19 +269,19 @@ class LossCCF(LossRegularizer):
                 f" not match the number of weights ({weights.numel()})"
             )
 
-        self.filters = filters.reshape([1, -1, *(1,) * self.n_dims])
+        self.weights = weights.reshape([1, -1, *(1,) * self.n_dims])
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
         """Compute decomposition on current batch."""
         _check_input_tensor(img, self.n_dims)
         axes = list(range(-(self.n_dims + 1), 0))
 
-        decomp = CustomFilterDecomposition(kernels=self.filters[:, not self.min_approx :, ...], device=img.device)
-        filts = self.filters[:, not self.min_approx :, ...].to(img.device)
+        decomp = CustomFilterDecomposition(kernels=self.filters[not self.min_approx :, ...], device=img.device)
+        weights = self.weights[:, not self.min_approx :, ...].to(img.device)
 
         coeffs = decomp.analyze(img)
 
-        loss_vals: pt.Tensor = self.lambda_val * (filts * coeffs).abs().sum(1).sum(axes)
+        loss_vals: pt.Tensor = self.lambda_val * (weights * coeffs).abs().sum(1).sum(axes)
 
         if self.reduction.lower() == "mean":
             return loss_vals.mean()
