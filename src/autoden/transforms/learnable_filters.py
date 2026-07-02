@@ -393,7 +393,9 @@ class ParsevalL1Regularizer(nn.Module):
         num_filters = m - fix_lambda0
 
         if isinstance(lambda_init, float):
-            lambda_init = pt.full((1, num_filters, *ones_k), math.log(lambda_init))
+            lambda_init = pt.full((1, num_filters, *ones_k), lambda_init)
+            if not fix_lambda0:
+                lambda_init[0, 0] *= 0.01
         elif isinstance(lambda_init, (np.ndarray, pt.Tensor)):
             if isinstance(lambda_init, np.ndarray):
                 lambda_init = pt.tensor(lambda_init)
