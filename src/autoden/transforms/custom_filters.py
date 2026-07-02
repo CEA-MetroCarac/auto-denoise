@@ -122,8 +122,9 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
         super().__init__(k=k, in_ch=in_ch, n_dims=n_dims, m=m)
 
         if not isinstance(kernels, pt.Tensor):
-            kernels = pt.tensor(kernels, device=device)
-        self.kernels = kernels.detach().clone()
+            kernels = pt.tensor(kernels)
+        kernels = kernels.detach().to(device).clone()
+        self.register_buffer("kernels", kernels)
 
         self.device = device
 

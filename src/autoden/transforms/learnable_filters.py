@@ -76,8 +76,8 @@ class LearnableStiefelFilterBank(ConvolutionalDecompositionBase):
         return self.get_F().view(self.m, self.in_ch, *((self.k,) * self.n_dims))
 
     def get_filter_weights(self, ord: int = 2) -> NDArray:
-        power = self.get_fourier_filter_power_spectrum()
-        q, max_q = _fold_fourier_quadrants(power.detach().numpy().copy(), n_dims=self.n_dims)
+        power = self.get_fourier_filter_power_spectrum().detach().cpu().numpy().copy()
+        q, max_q = _fold_fourier_quadrants(power, n_dims=self.n_dims)
         peaks_dist_origin = np.linalg.norm(max_q, ord=ord, axis=0)
         return peaks_dist_origin / np.linalg.norm(q.shape[-self.n_dims :], ord=ord)
 
@@ -140,7 +140,7 @@ class LearnableStiefelFilterBank(ConvolutionalDecompositionBase):
         else:
             filters = self.get_kernels()
 
-        filters = filters.detach().squeeze().numpy().copy()
+        filters = filters.detach().squeeze().cpu().numpy().copy()
         if self.in_ch > 1:
             print(f"Filters have {self.in_ch} input channels. They will be averaged.")
             filters = filters.mean(axis=1)
@@ -576,7 +576,7 @@ def train_lambdas_denoising(
 
     if verbose:
         print(f"  Best val loss: {best_val_loss:.6f}")
-    return reg, best_lambdas.numpy().copy()
+    return reg, best_lambdas.cpu().numpy().copy()
 
 
 def estimate_lambdas(
@@ -629,11 +629,11 @@ def estimate_lambdas(
     'sweep': run a coarse grid search for the best lambda (single global lambda
         / or a global lambda multiplier) on the validation images. Fast, data-driven.
     """
-    filterbank = filterbank.to(device).eval()
+    filterbank = filterbank.to(device)
 
     weights_shape: tuple[int, ...] = (1, filterbank.m, *(1,) * filterbank.n_dims)
 
-    with pt.no_grad():
+    with pt.inference_mode():
         if method.lower() == "mad":
             # Estimate noise response of each filter
             noise = sigma * pt.rand_like(pt.from_numpy(data_val)).to(device)
@@ -643,7 +643,7 @@ def estimate_lambdas(
             # Universal threshold: sigma_i * sqrt(2 log n)
             n = int(np.prod(data_val.shape[-filterbank.n_dims :]))
             lam = (mad / 0.6745) * math.sqrt(2 * math.log(n))
-            return lam.view(*weights_shape).numpy().copy()
+            return lam.view(*weights_shape).cpu().numpy().copy()
 
         elif method.lower() == "sweep":
             if lams is None:
@@ -656,7 +656,7 @@ def estimate_lambdas(
             for ii, lam_val in enumerate(tqdm(lams, desc="Testing lambdas")):
                 lam_t = pt.full(weights_shape, lam_val, device=device)
                 if filter_weights is not None:
-                    lam_t *= pt.from_numpy(filter_weights).reshape(weights_shape)
+                    lam_t *= pt.tensor(filter_weights).to(device).reshape(weights_shape)
 
                 psnr_sum = 0.0
                 for noisy, x in dset_list:
