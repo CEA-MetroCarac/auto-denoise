@@ -19,6 +19,20 @@ from autoden.transforms.custom_filters import ConvolutionalDecompositionBase, Cu
 
 
 def _fold_fourier_quadrants(fourier_data: NDArray, n_dims: int) -> tuple[NDArray, NDArray]:
+    """Fold the Fourier quadrants of the input data.
+
+    Parameters
+    ----------
+    fourier_data : NDArray
+        Input Fourier data.
+    n_dims : int
+        Number of dimensions.
+
+    Returns
+    -------
+    tuple[NDArray, NDArray]
+        Folded Fourier data and the maxima of the quadrants.
+    """
     slices_prep = [(slice(0, s // 2), slice(-(s // 2), s)) for s in fourier_data.shape[-n_dims:]]
     slices_q = list(product(*slices_prep))
 
@@ -50,6 +64,21 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
     def __init__(
         self, k: int, n_dims: int = 2, in_ch: int = 1, m: int | None = None, shape_ref: Sequence[int] | None = None
     ) -> None:
+        """Initialize the LearnableParsevalFilterBank.
+
+        Parameters
+        ----------
+        k : int
+            Filter spatial size, k ** n_dims.
+        n_dims : int, optional
+            Number of dimensions (default is 2).
+        in_ch : int, optional
+            Input channels (1 = grayscale, default is 1).
+        m : int, optional
+            Total number of filters (including the constant one). If None, m is set to k**n_dims * in_ch.
+        shape_ref : Sequence[int] | None, optional
+            Reference image shape for Fourier penalty embedding (default is None).
+        """
         d: int = in_ch * (k**n_dims)
         if m is None:
             m = d
@@ -69,20 +98,60 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
     def get_F(self) -> pt.Tensor: ...
 
     def get_kernels(self) -> pt.Tensor:
-        "For 2D: (m, in_ch * k ** 2) -> (m, in_ch, k, k)"
+        """Return the kernels for the convolutions.
+
+        Returns
+        -------
+        pt.Tensor
+            The kernels for the convolutions.
+
+        Notes
+        -----
+        For 2D: (m, in_ch * k ** 2) -> (m, in_ch, k, k)
+        """
         return self.get_F().view(self.m, self.in_ch, *((self.k,) * self.n_dims))
 
     def get_filter_freq(self) -> NDArray:
-        """Return the main frequency associated to each filter, wrt the highest frequency"""
+        """Return the main frequency associated to each filter, wrt the highest frequency.
+
+        Returns
+        -------
+        NDArray
+            The main frequency associated to each filter.
+        """
         return self.get_filter_weights(ord=2)
 
     def get_filter_weights(self, ord: int = 2) -> NDArray:
+        """Return the weights of the filters.
+
+        Parameters
+        ----------
+        ord : int, optional
+            Order of the norm (default is 2).
+
+        Returns
+        -------
+        NDArray
+            The weights of the filters.
+        """
         power = self.get_fourier_filter_power_spectrum().detach().cpu().numpy().copy()
         q, max_q = _fold_fourier_quadrants(power, n_dims=self.n_dims)
         peaks_dist_origin = np.linalg.norm(max_q, ord=ord, axis=0)
         return peaks_dist_origin / np.linalg.norm(q.shape[-self.n_dims :], ord=ord)
 
     def get_custom_decomposition(self, device: str | pt.DeviceObjType | None = None) -> CustomFilterDecomposition:
+        """Return a CustomFilterDecomposition object with the current kernels.
+
+        Parameters
+        ----------
+        device : str | pt.DeviceObjType | None, optional
+            Device to use for the CustomFilterDecomposition (default is None).
+
+        Returns
+        -------
+        CustomFilterDecomposition
+            A CustomFilterDecomposition object with the current kernels.
+        """
         if device is None:
             device = str(self.get_kernels().device)
         device = str(device)
@@ -90,11 +159,33 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
 
     # ── Analysis and synthesis ────────────────────────────────────────────────
     def reconstruct(self, x: pt.Tensor) -> pt.Tensor:
-        """W^T Wx approx = x when both (A) and (B) hold."""
+        """Reconstruct the input tensor using the current kernels.
+
+        Parameters
+        ----------
+        x : pt.Tensor
+            Input tensor.
+
+        Returns
+        -------
+        pt.Tensor
+            Reconstructed tensor.
+
+        Notes
+        -----
+        W^T Wx approx = x when both (A) and (B) hold.
+        """
         return self.synthesize(self.analyze(x))
 
     # ── Spectral flatness penalty (condition B) ───────────────────────────────
     def get_fourier_filter_power_spectrum(self) -> pt.Tensor:
+        """Return the Fourier power spectrum of the filters.
+
+        Returns
+        -------
+        pt.Tensor
+            The Fourier power spectrum of the filters.
+        """
         w = self.get_kernels()
         emb = pt.zeros(self.m, *self.shape_ref, device=w.device)
         slices = [slice(None)] + [slice(self.k)] * self.n_dims
@@ -103,7 +194,15 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         return pt.fft.fftn(emb, dim=axes).abs().pow(2)
 
     def fourier_penalty(self) -> pt.Tensor:
-        """
+        """Return the Fourier penalty.
+
+        Returns
+        -------
+        pt.Tensor
+            The Fourier penalty.
+
+        Notes
+        -----
         || sum_i |hat{q}_i(w)|^2 - m ||^2  averaged over frequencies.
         Target is m because each filter has unit energy (condition A).
         """
@@ -111,6 +210,18 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         return ((power.sum(dim=0) - float(self.m)) ** 2).sum()
 
     def fourier_spectrum_penalty(self, use_tanh: bool = False) -> pt.Tensor:
+        """Return the Fourier spectrum penalty.
+
+        Parameters
+        ----------
+        use_tanh : bool, optional
+            Whether to use tanh for the penalty (default is False).
+
+        Returns
+        -------
+        pt.Tensor
+            The Fourier spectrum penalty.
+        """
         power = self.get_fourier_filter_power_spectrum()
         power_cntr_norm = (float(self.m) / 2 - power) / float(self.m)
         if use_tanh:
@@ -120,6 +231,18 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         return power_penalty.sum()
 
     def get_interior_error(self, x_test: pt.Tensor) -> float:
+        """Return the interior error.
+
+        Parameters
+        ----------
+        x_test : pt.Tensor
+            Test tensor.
+
+        Returns
+        -------
+        float
+            The interior error.
+        """
         recon = self.reconstruct(x_test)
         slices = tuple([slice(0, 1)] * 2 + [slice(self.k, -self.k)] * self.n_dims)
         return float(((recon[slices] - x_test[slices]).norm() / x_test[slices].norm()).item())
@@ -127,17 +250,43 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
     # ── Diagnostics ───────────────────────────────────────────────────────────
     @pt.no_grad()
     def gram_error(self) -> float:
+        """Return the Gram error.
+
+        Returns
+        -------
+        float
+            The Gram error.
+        """
         F_ = self.get_F()
         return (F_ @ F_.T - pt.eye(self.m, device=F_.device)).norm().item()
 
     @pt.no_grad()
     def zero_mean_error(self) -> float:
-        """max |mean(q_i)| for i >= 1: should be ~0 (filters are q_0-orthogonal)."""
+        """Return the zero mean error.
+
+        Returns
+        -------
+        float
+            The zero mean error.
+
+        Notes
+        -----
+        max |mean(q_i)| for i >= 1: should be ~0 (filters are q_0-orthogonal).
+        """
         means = self.get_F()[1:].mean(dim=1).abs()  # mean over spatial dim
         return means.max().item()
 
     @pt.no_grad()
     def print_diagnostics(self, x_test: pt.Tensor, label: str = ""):
+        """Print diagnostics.
+
+        Parameters
+        ----------
+        x_test : pt.Tensor
+            Test tensor.
+        label : str, optional
+            Label for the diagnostics (default is "").
+        """
         print(f"\n── Diagnostics {label} {'─'*30}")
         print(f"   m={self.m} filters, k={self.k}, n_dims={self.n_dims}, in_ch={self.in_ch}")
         print(f"   ||FF^T - I||_F = {self.gram_error():.2e}   (machine precision)")
@@ -151,6 +300,15 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
 
     @pt.no_grad()
     def plot_filters(self, fourier_space: bool = False, print_weights: bool = True):
+        """Plot the filters.
+
+        Parameters
+        ----------
+        fourier_space : bool, optional
+            Whether to plot the filters in Fourier space (default is False).
+        print_weights : bool, optional
+            Whether to print the weights of the filters (default is True).
+        """
         if fourier_space:
             filters = self.get_fourier_filter_power_spectrum()
         else:
@@ -180,8 +338,7 @@ class ParsevalFilterBankND(LearnableParsevalFilterBank):
     V: pt.Tensor
 
     def __init__(self, k: int, n_dims: int = 2, in_ch: int = 1, m: int | None = None, shape_ref: Sequence[int] | None = None):
-        """
-        Initialize a Parseval filterbank
+        """Initialize a Parseval filterbank.
 
         Parameters
         ----------
@@ -232,8 +389,7 @@ class ParsevalFilterBankND(LearnableParsevalFilterBank):
         self.A = nn.Parameter(A)
 
     def get_F(self) -> pt.Tensor:
-        """
-        Return F in R^{m x d} with FF^T = I_m and F[0] = q_0.
+        """Return F in R^{m x d} with FF^T = I_m and F[0] = q_0.
 
         F[0] = q_0 (constant, fixed)
         F[1:] = G @ V^T (learned, zero-mean, orthonormal)
@@ -241,6 +397,11 @@ class ParsevalFilterBankND(LearnableParsevalFilterBank):
         where G = QR(A^T)^T in R^{(m-1) x (d-1)}, rows orthonormal.
 
         Gradient flows through A -> G -> F[1:] automatically.
+
+        Returns
+        -------
+        pt.Tensor
+            The F tensor.
         """
         # Ortho-normalize A in R^{d-1}
         Q, _ = pt.linalg.qr(self.A.T)  # Q: (d-1) x (m-1)
@@ -265,12 +426,11 @@ def train_sparsity(
     device: str = "cuda" if pt.cuda.is_available() else "cpu",
     verbose: bool = True,
 ) -> tuple[LearnableParsevalFilterBank, dict[str, NDArray]]:
-    """
-    Learn orthonormal filterbank (in the Stiefel manifold) by minimizing the l_1-norm of analysis coefficients.
+    """Learn orthonormal filterbank (in the Stiefel manifold) by minimizing the l_1-norm of analysis coefficients.
 
     Parameters
     ----------
-    filterbank : LearnableStiefelFilterBank
+    filterbank : LearnableParsevalFilterBank
         The filterbank to be trained.
     data_trn : NDArray
         Training data consisting of CLEAN images only.

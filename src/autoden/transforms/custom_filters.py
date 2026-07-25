@@ -108,6 +108,15 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
     kernels: pt.Tensor
 
     def __init__(self, kernels: pt.Tensor | NDArray, device: str = "cuda" if pt.cuda.is_available() else "cpu") -> None:
+        """Initialize the CustomFilterDecomposition.
+
+        Parameters
+        ----------
+        kernels : pt.Tensor | NDArray
+            The kernels to be used for the convolutions. Should have shape (m, in_ch, *((k,) * n_dims)).
+        device : str, optional
+            The device to use for the kernels. Defaults to "cuda" if available, otherwise "cpu".
+        """
         m = kernels.shape[0]
         in_ch = kernels.shape[1]
         n_dims = kernels.ndim - 2
@@ -129,4 +138,11 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
         self.device = device
 
     def get_kernels(self) -> pt.Tensor:
+        """Return the kernels to be used for the convolutions.
+
+        Returns
+        -------
+        pt.Tensor
+            The kernels for the convolutions.
+        """
         return self.kernels
