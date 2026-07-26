@@ -6,6 +6,7 @@ import math
 from abc import abstractmethod
 from collections.abc import Sequence
 from itertools import product
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -62,7 +63,13 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
     shape_ref: Sequence[int]
 
     def __init__(
-        self, k: int, n_dims: int = 2, in_ch: int = 1, m: int | None = None, shape_ref: Sequence[int] | None = None
+        self,
+        k: int,
+        n_dims: int = 2,
+        in_ch: int = 1,
+        m: int | None = None,
+        shape_ref: Sequence[int] | None = None,
+        norm: Literal["backward", "forward", "ortho"] | None = "backward",
     ) -> None:
         """Initialize the LearnableParsevalFilterBank.
 
@@ -78,6 +85,8 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
             Total number of filters (including the constant one). If None, m is set to k**n_dims * in_ch.
         shape_ref : Sequence[int] | None, optional
             Reference image shape for Fourier penalty embedding (default is None).
+        norm : str | None, optional
+            Normalization type. Defaults to "backward".
         """
         d: int = in_ch * (k**n_dims)
         if m is None:
@@ -87,7 +96,7 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         if m < 2:
             raise ValueError(f"Need m >= 2 (at least the constant + 1 learned filter), but {m} asked.")
 
-        super().__init__(k=k, n_dims=n_dims, in_ch=in_ch, m=m)
+        super().__init__(k=k, n_dims=n_dims, in_ch=in_ch, m=m, norm=norm)
         self.d = d
 
         if shape_ref is None:

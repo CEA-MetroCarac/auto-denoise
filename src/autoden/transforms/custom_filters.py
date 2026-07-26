@@ -19,11 +19,14 @@ class ConvolutionalDecompositionBase(ABC, nn.Module):
     k: int
     in_ch: int
     n_dims: int
+    norm: Literal["backward", "forward", "ortho"] | None
 
     _ndconvs_d: dict[int, Callable[..., pt.Tensor]] = {1: F.conv1d, 2: F.conv2d, 3: F.conv3d}
     _ndconvs_t: dict[int, Callable[..., pt.Tensor]] = {1: F.conv_transpose1d, 2: F.conv_transpose2d, 3: F.conv_transpose3d}
 
-    def __init__(self, k: int, n_dims: int, in_ch: int, m: int) -> None:
+    def __init__(
+        self, k: int, n_dims: int, in_ch: int, m: int, norm: Literal["backward", "forward", "ortho"] | None = "backward"
+    ) -> None:
         """Initialize the ConvolutionalDecomposition.
 
         Parameters
@@ -36,12 +39,15 @@ class ConvolutionalDecompositionBase(ABC, nn.Module):
             Number of input channels.
         m : int
             Number of output channels.
+        norm : Literal["backward", "forward", "ortho"] | None, optional
+            Normalization type. Defaults to "backward".
         """
         super().__init__()
         self.k = k
         self.n_dims = n_dims
         self.in_ch = in_ch
         self.m = m
+        self.norm = norm
 
     @abstractmethod
     def get_kernels(self) -> pt.Tensor:
@@ -53,15 +59,13 @@ class ConvolutionalDecompositionBase(ABC, nn.Module):
             The kernels for the convolutions.
         """
 
-    def analyze(self, x: pt.Tensor, norm: Literal["backward"] | Literal["ortho"] | Literal["forward"] = "ortho") -> pt.Tensor:
+    def analyze(self, x: pt.Tensor) -> pt.Tensor:
         """Apply the analysis (forward) transform using the kernels.
 
         Parameters
         ----------
         x : pt.Tensor
             Input tensor of shape (B, in_ch, [D, H], W).
-        norm : str, optional
-            Normalization type. Defaults to "ortho".
 
         Returns
         -------
@@ -70,23 +74,20 @@ class ConvolutionalDecompositionBase(ABC, nn.Module):
         """
         w = self.get_kernels()
         c = self._ndconvs_d[self.n_dims](x, w, padding=self.k // 2)
-        if norm.lower() == "ortho":
-            c = c / math.sqrt(self.m)
-        elif norm.lower() == "forward":
-            c = c / float(self.m)
+        if self.norm is not None:
+            if self.norm.lower() == "ortho":
+                c = c / math.sqrt(self.m) * math.sqrt(self.in_ch)
+            elif self.norm.lower() == "forward":
+                c = c / float(self.m) * float(self.in_ch)
         return c
 
-    def synthesize(
-        self, c: pt.Tensor, norm: Literal["backward"] | Literal["ortho"] | Literal["forward"] = "ortho"
-    ) -> pt.Tensor:
+    def synthesize(self, c: pt.Tensor) -> pt.Tensor:
         """Apply the synthesis (inverse) transform using the kernels.
 
         Parameters
         ----------
         c : pt.Tensor
             Input tensor of shape (B, m, [D, H], W).
-        norm : str, optional
-            Normalization type. Defaults to "ortho".
 
         Returns
         -------
@@ -95,10 +96,11 @@ class ConvolutionalDecompositionBase(ABC, nn.Module):
         """
         w = self.get_kernels()
         x = self._ndconvs_t[self.n_dims](c, w, padding=self.k // 2)
-        if norm.lower() == "ortho":
-            x = x / math.sqrt(self.m)
-        elif norm.lower() == "forward":
-            x = x / float(self.m)
+        if self.norm is not None:
+            if self.norm.lower() == "ortho":
+                x = x / math.sqrt(self.m) * math.sqrt(self.in_ch)
+            elif self.norm.lower() == "backward":
+                x = x / float(self.m) * float(self.in_ch)
         return x
 
 
@@ -107,7 +109,12 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
 
     kernels: pt.Tensor
 
-    def __init__(self, kernels: pt.Tensor | NDArray, device: str = "cuda" if pt.cuda.is_available() else "cpu") -> None:
+    def __init__(
+        self,
+        kernels: pt.Tensor | NDArray,
+        device: str = "cuda" if pt.cuda.is_available() else "cpu",
+        norm: Literal["backward", "forward", "ortho"] | None = "backward",
+    ) -> None:
         """Initialize the CustomFilterDecomposition.
 
         Parameters
@@ -116,6 +123,8 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
             The kernels to be used for the convolutions. Should have shape (m, in_ch, *((k,) * n_dims)).
         device : str, optional
             The device to use for the kernels. Defaults to "cuda" if available, otherwise "cpu".
+        norm : Literal["backward", "forward", "ortho"] | None, optional
+            Normalization type. Defaults to "backward".
         """
         m = kernels.shape[0]
         in_ch = kernels.shape[1]
@@ -128,7 +137,7 @@ class CustomFilterDecomposition(ConvolutionalDecompositionBase):
                 f"Kernels should have the same size `k` in all directions, but {kernels.shape[-n_dims]} was passed."
                 f" Complete shape: {kernels.shape}"
             )
-        super().__init__(k=k, in_ch=in_ch, n_dims=n_dims, m=m)
+        super().__init__(k=k, in_ch=in_ch, n_dims=n_dims, m=m, norm=norm)
 
         if not isinstance(kernels, pt.Tensor):
             kernels = pt.tensor(kernels)
