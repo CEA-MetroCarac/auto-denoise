@@ -5,7 +5,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 <!-- insertion marker -->
-## [v2.0.0](https://github.com/CEA-MetroCarac/auto-denoise/releases/tag/v2.0.1) - 2025-09-15
+## [v3.0.0](https://github.com/CEA-MetroCarac/auto-denoise/releases/tag/v3.0.0) - 2026-07-31
+
+This is the third major release of Auto-denoise, providing:
+
+* Wavelet (decimated & undecimated) transform support, and related loss for regularization (#7)
+* Improved dataset handling and data augmentation (#8)
+* Multi-channel support (#9)
+* Learning convolutional Parseval regularizes support, and related loss for regularization (#11)
+
+<small>[Compare with v2.0.0](https://github.com/CEA-MetroCarac/auto-denoise/compare/v2.0.0...v3.0.0)</small>
+
+## [v2.0.0](https://github.com/CEA-MetroCarac/auto-denoise/releases/tag/v2.0.0) - 2025-09-15
 
 This is the second major release of Auto-denoise, providing:
 
