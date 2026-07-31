@@ -1,8 +1,7 @@
 {%- set pyproject = load_file_data('pyproject.toml') %}
 {%- set project = pyproject.get('project', {}) %}
 {%- set env_file = load_file_data('environment.yaml') %}
-{%- set py_min_version = project['requires-python'] %}
-{%- set py_build_version = py_min_version | replace('>', '') | replace('=', '') %}
+{%- set py_min_version = project['requires-python'] | replace('>', '') | replace('=', '') %}
 
 package:
     name: {{ project['name'] }}
@@ -19,7 +18,7 @@ build:
 
 requirements:
     host:
-        - python {{ py_build_version }}.*
+        - python {{ py_min_version }}.*
         - pip
 
     run:
