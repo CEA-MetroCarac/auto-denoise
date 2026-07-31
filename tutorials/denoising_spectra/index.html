@@ -16,7 +16,7 @@
         <link rel="prev" href="../noise2inverse/">
       
       
-        <link rel="next" href="../models_io/">
+        <link rel="next" href="../regularization/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -524,6 +524,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -576,6 +580,29 @@
   
   <span class="md-ellipsis">
     Denoising images & volumes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../denoising_multichannel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Denoising multi-channel signals
     
   </span>
   
@@ -756,6 +783,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../regularization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Regularization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../models_io/" class="md-nav__link">
         
   
@@ -896,6 +946,8 @@
       
         
       
+        
+      
     
     
     
@@ -964,6 +1016,8 @@
       
         
       
+        
+      
     
     
     
@@ -1007,6 +1061,29 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -1442,6 +1519,147 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/autoden/transforms/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> transforms
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_1_1_7" id="__nav_3_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> transforms
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/custom_filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> custom_filters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/learnable_filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> learnable_filters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/learnable_regularizers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> learnable_regularizers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1735,12 +1953,16 @@ In particular, we present the case of a long 3.2 seconds XRF acquisition, obtain
 <p>This model is very small for CNN model standards (only 256 parameters!), as the data is quite simple, and we do not want the model to overfit the data.</p>
 <h3 id="noise2noise-n2n">Noise2Noise (N2N)<a class="headerlink" href="#noise2noise-n2n" title="Permanent link">&para;</a></h3>
 <p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [<a href="#ref.2">2</a>]. It learns to map one noisy image to another noisy image of the same object. The <code>prepare_data</code> function is used to organize the data in such a way that the algorithm can handle it correctly.</p>
-<p><div class="highlight"><pre><span></span><code><span class="n">n2n</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2N</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<p><div class="highlight"><pre><span></span><code><span class="n">n2n</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2N</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">augmentation</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;flip&quot;</span><span class="p">])</span>
 <span class="n">n2n_data</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">prepare_data</span><span class="p">(</span><span class="n">counts</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span>
 <span class="n">_</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="o">*</span><span class="n">n2n_data</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">lower_limit</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">learning_rate</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span> <span class="n">restarts</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </code></pre></div>
 <img alt="learning losses" src="../../images/n2n_spectra_losses.png" /></p>
 <p>Here, we impose a lower limit of 0.0, as we know that the detected photons cannot be negative. We also set a high initial learning rate, to speed up the convergence (after all, we're starting from a completely untrained /  randomly initialized network). However, we then progressively reduce the learning using a cosine annealing scheduler, through the <code>restarts=1</code> argument. This value would allow us to do multiple waves of high-to-low learning rate variations for a number of restarts &gt; 1, but that is unnecessary in this instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Augmentation</p>
+<p>We can improve the denoising performance by applying augmentations to the data. In this specific case, as the data is 1D, the only available operation is a data flip along the spectral axis.</p>
+</div>
 <h2 id="performing-inference">Performing Inference<a class="headerlink" href="#performing-inference" title="Permanent link">&para;</a></h2>
 <p>Inference is the process of using the trained model to denoise new spectra. The <code>infer</code> method takes the noisy spectra as input and outputs the denoised spectra.</p>
 <div class="highlight"><pre><span></span><code><span class="n">pred_counts</span> <span class="o">=</span> <span class="n">n2n</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">n2n_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -1847,13 +2069,13 @@ In particular, we present the case of a long 3.2 seconds XRF acquisition, obtain
         
         
           
-          <a href="../models_io/" class="md-footer__link md-footer__link--next" aria-label="Next: Saving &amp; loading models">
+          <a href="../regularization/" class="md-footer__link md-footer__link--next" aria-label="Next: Regularization">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Saving & loading models
+                Regularization
               </div>
             </div>
             <div class="md-footer__button md-icon">

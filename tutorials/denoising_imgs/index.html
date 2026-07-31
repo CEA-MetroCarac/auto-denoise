@@ -16,7 +16,7 @@
         <link rel="prev" href="../../license/">
       
       
-        <link rel="next" href="../noise2inverse/">
+        <link rel="next" href="../denoising_multichannel/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -524,6 +524,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -797,6 +801,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../denoising_multichannel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Denoising multi-channel signals
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../noise2inverse/" class="md-nav__link">
         
   
@@ -826,6 +853,29 @@
   
   <span class="md-ellipsis">
     Noise2Noise for spectra
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../regularization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Regularization
     
   </span>
   
@@ -983,6 +1033,8 @@
       
         
       
+        
+      
     
     
     
@@ -1051,6 +1103,8 @@
       
         
       
+        
+      
     
     
     
@@ -1094,6 +1148,29 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/algorithms/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -1511,6 +1588,147 @@
   
   <span class="md-ellipsis">
     <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> unet
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/autoden/transforms/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> transforms
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_1_1_7" id="__nav_3_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> transforms
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/custom_filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> custom_filters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/learnable_filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> learnable_filters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/autoden/transforms/learnable_regularizers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code> learnable_regularizers
     
   </span>
   
@@ -1951,7 +2169,8 @@ This technique could save around 30\% memory, but it would lose the information 
 <h3 id="noise2void-n2v">Noise2Void (N2V)<a class="headerlink" href="#noise2void-n2v" title="Permanent link">&para;</a></h3>
 <p>Noise2Void is a self-supervised denoising method that can work with a single noisy image [<a href="#ref.5">5</a>]. This implementation can also work with structured noise [<a href="#ref.6">6</a>]. It applies randomly generated masks to the images and learns to predict the masked pixels.</p>
 <div class="highlight"><pre><span></span><code><span class="n">denoiser_n2v</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">N2V</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">net_params</span><span class="p">,</span> <span class="n">reg_val</span><span class="o">=</span><span class="n">REG_TV_VAL</span><span class="p">)</span>
-<span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">,</span> <span class="n">tst_inds</span><span class="o">=</span><span class="n">tst_inds</span><span class="p">)</span>
+<span class="n">n2v_data</span> <span class="o">=</span> <span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">prepare_data</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">,</span> <span class="n">num_tst_ratio</span><span class="o">=</span><span class="n">NUM_IMGS_TST</span> <span class="o">/</span> <span class="n">NUM_IMGS_TOT</span><span class="p">)</span>
+<span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="o">*</span><span class="n">n2v_data</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="n">EPOCHS</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="noise2noise-n2n">Noise2Noise (N2N)<a class="headerlink" href="#noise2noise-n2n" title="Permanent link">&para;</a></h3>
 <p>Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [<a href="#ref.7">7</a>]. It learns to map one noisy image to another noisy image of the same object. The <code>prepare_data</code> function is used to organize the data in such a way that the algorithm can handle it correctly.</p>
@@ -1986,23 +2205,27 @@ The batch size is selected through the <code>batch_size</code> argument when N2N
 </div>
 <h2 id="performing-inference">Performing Inference<a class="headerlink" href="#performing-inference" title="Permanent link">&para;</a></h2>
 <p>Inference is the process of using the trained models to denoise new images. The <code>infer</code> method takes the noisy images as input and outputs the denoised images.</p>
+<div class="admonition note">
+<p class="admonition-title">Inference input</p>
+<p>The output of the <code>prepare_data</code> function is needed or suggested the inference.</p>
+</div>
 <h3 id="supervised-denoiser-inference">Supervised Denoiser Inference<a class="headerlink" href="#supervised-denoiser-inference" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">den_sup</span> <span class="o">=</span> <span class="n">denoiser_sup</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">sup_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Inference input</p>
-<p>The output of the <code>prepare_data</code> function is also preferred for the inference of Supervised, even though the noisy images should still work for the foreseeable future.</p>
+<p>The output of the <code>prepare_data</code> function is preferred for inference of <code>Supervised</code>, even though the noisy images should also work for the foreseeable future.</p>
 </div>
 <h3 id="noise2void-n2v-inference">Noise2Void (N2V) Inference<a class="headerlink" href="#noise2void-n2v-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_n2v</span> <span class="o">=</span> <span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">imgs_noisy</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="noise2noise-n2n-inference">Noise2Noise (N2N) Inference<a class="headerlink" href="#noise2noise-n2n-inference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="n">den_n2n</span> <span class="o">=</span> <span class="n">denoiser_n2n</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">n2n_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><span class="n">den_n2v</span> <span class="o">=</span> <span class="n">denoiser_n2v</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">n2v_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Inference input</p>
-<p>The output of the <code>prepare_data</code> function is also needed for the inference of N2N.</p>
+<p>The output of the <code>prepare_data</code> function is preferred for inference of <code>Noise2Noise</code>, even though the noisy images should also work for the foreseeable future.</p>
 </div>
+<h3 id="noise2noise-n2n-inference">Noise2Noise (N2N) Inference<a class="headerlink" href="#noise2noise-n2n-inference" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">den_n2n</span> <span class="o">=</span> <span class="n">denoiser_n2n</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">n2n_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Inference output</p>
 <p>The <code>inference</code> function of N2N  automatically averages the splits, unless the <code>average_splits</code> flag is set to <code>False</code>.</p>
@@ -2010,10 +2233,6 @@ The batch size is selected through the <code>batch_size</code> argument when N2N
 <h3 id="deep-image-prior-dip-inference">Deep Image Prior (DIP) Inference<a class="headerlink" href="#deep-image-prior-dip-inference" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">den_dip</span> <span class="o">=</span> <span class="n">denoiser_dip</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">dip_data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Inference input</p>
-<p>The output of the <code>prepare_data</code> function is also needed for the inference of DIP.</p>
-</div>
 <h2 id="visualizing-the-results">Visualizing the Results<a class="headerlink" href="#visualizing-the-results" title="Permanent link">&para;</a></h2>
 <p>Finally, we visualize the results of the different denoisers.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="image" name="__tabbed_1" type="radio" /><input id="code" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="image">Image</label><label for="code">Code</label></div>
@@ -2145,13 +2364,13 @@ The batch size is selected through the <code>batch_size</code> argument when N2N
         
         
           
-          <a href="../noise2inverse/" class="md-footer__link md-footer__link--next" aria-label="Next: Noise2Inverse">
+          <a href="../denoising_multichannel/" class="md-footer__link md-footer__link--next" aria-label="Next: Denoising multi-channel signals">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Noise2Inverse
+                Denoising multi-channel signals
               </div>
             </div>
             <div class="md-footer__button md-icon">
