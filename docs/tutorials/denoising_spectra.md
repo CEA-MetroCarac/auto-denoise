@@ -48,13 +48,16 @@ This model is very small for CNN model standards (only 256 parameters!), as the 
 Noise2Noise is a self-supervised denoising method that uses pairs of noisy images of the same object [[2](#ref.2)]. It learns to map one noisy image to another noisy image of the same object. The `prepare_data` function is used to organize the data in such a way that the algorithm can handle it correctly.
 
 ```python
-n2n = ad.N2N(model=model, reg_val=None)
+n2n = ad.N2N(model=model, augmentation=["flip"])
 n2n_data = n2n.prepare_data(counts[:4])
 _ = n2n.train(*n2n_data, epochs=10_000, lower_limit=0.0, learning_rate=1e-2, restarts=1)
 ```
 ![learning losses](../images/n2n_spectra_losses.png)
 
 Here, we impose a lower limit of 0.0, as we know that the detected photons cannot be negative. We also set a high initial learning rate, to speed up the convergence (after all, we're starting from a completely untrained /  randomly initialized network). However, we then progressively reduce the learning using a cosine annealing scheduler, through the `restarts=1` argument. This value would allow us to do multiple waves of high-to-low learning rate variations for a number of restarts > 1, but that is unnecessary in this instance.
+
+!!! note "Augmentation"
+    We can improve the denoising performance by applying augmentations to the data. In this specific case, as the data is 1D, the only available operation is a data flip along the spectral axis.
 
 ## Performing Inference
 
