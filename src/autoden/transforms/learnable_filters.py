@@ -120,18 +120,8 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         """
         return self.get_F().view(self.m, self.in_ch, *((self.k,) * self.n_dims))
 
-    def get_filter_freq(self) -> NDArray:
+    def get_filter_freq(self, ord: int = 2) -> NDArray:
         """Return the main frequency associated to each filter, wrt the highest frequency.
-
-        Returns
-        -------
-        NDArray
-            The main frequency associated to each filter.
-        """
-        return self.get_filter_weights(ord=2)
-
-    def get_filter_weights(self, ord: int = 2) -> NDArray:
-        """Return the weights of the filters.
 
         Parameters
         ----------
@@ -141,12 +131,27 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         Returns
         -------
         NDArray
-            The weights of the filters.
+            The main frequency associated to each filter.
         """
         power = self.get_fourier_filter_power_spectrum().detach().cpu().numpy().copy()
         q, max_q = _fold_fourier_quadrants(power, n_dims=self.n_dims)
         peaks_dist_origin = np.linalg.norm(max_q, ord=ord, axis=0)
-        return peaks_dist_origin / np.linalg.norm(q.shape[-self.n_dims :], ord=ord)
+        return peaks_dist_origin / np.linalg.norm(np.array(q.shape[-self.n_dims :]) - 1, ord=ord)
+
+    def get_filter_weights(self, exponent: float = 2) -> NDArray:
+        """Return the weights of the filters.
+
+        Parameters
+        ----------
+        exponent : float, optional
+            Exponent of the frequency (default is 2).
+
+        Returns
+        -------
+        NDArray
+            The weights of the filters.
+        """
+        return self.get_filter_freq(ord=2) ** exponent
 
     def get_custom_decomposition(self, device: str | pt.DeviceObjType | None = None) -> CustomFilterDecomposition:
         """Return a CustomFilterDecomposition object with the current kernels.
@@ -308,7 +313,7 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         print(f"   Filter energies ||q_i||^2: min={energies.min():.6f} max={energies.max():.6f}")
 
     @pt.no_grad()
-    def plot_filters(self, fourier_space: bool = False, print_weights: bool = True):
+    def plot_filters(self, fourier_space: bool = False, print_freqs: bool = True):
         """Plot the filters.
 
         Parameters
@@ -329,13 +334,13 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
             filters = filters.mean(axis=1)
         vminmax = dict(vmin=float(filters.min()), vmax=float(filters.max()))
 
-        filt_weights = self.get_filter_weights().flatten()
+        filt_freqs = self.get_filter_freq().flatten()
 
         fig, axs = plt.subplots(self.k, self.k * self.in_ch, sharex=True, sharey=True, figsize=(7, 8.25))
         for ii in range(self.m):
             axs.flatten()[ii].imshow(filters[ii], **vminmax)
-            if print_weights:
-                axs.flatten()[ii].set_title(f"$\lambda$ = {filt_weights[ii]:.3}")
+            if print_freqs:
+                axs.flatten()[ii].set_title(f"f = {filt_freqs[ii]:.3}")
         fig.tight_layout()
         plt.show()
 
@@ -474,7 +479,7 @@ def train_sparsity(
     Only CLEAN images needed - no noise, no labels, no paired data.
     The Parseval constraint (via QR) handles reconstruction implicitly.
 
-    The the per-filter weights lambda_i are NOT learned here (set them afterwards for inference).
+    The per-filter weights lambda_i are NOT learned here (set them afterwards for inference).
 
     Key difference from denoising:
       - The gradient of the l_1-norm loss wrt F can be computed directly.
