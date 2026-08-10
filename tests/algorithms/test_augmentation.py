@@ -6,7 +6,7 @@ from src.autoden.algorithms.datasets import (
     AugmentationFlip,
     AugmentationGaussianNoise,
     AugmentationPoissonNoise,
-    AugmentationRotation,
+    AugmentationRotation90,
 )
 
 
@@ -47,11 +47,11 @@ def test_augmentation_flip_call(data: list[pt.Tensor]):
 def test_augmentation_rotation_init():
     """Test initialization of AugmentationRotation with different parameters."""
     # Test initialization with dims
-    aug_rot = AugmentationRotation(dims=(-2, -1))
+    aug_rot = AugmentationRotation90(dims=(-2, -1))
     assert aug_rot.dims == (-2, -1)
 
     # Test initialization without dims
-    aug_rot = AugmentationRotation()
+    aug_rot = AugmentationRotation90()
     assert aug_rot.dims is None
 
 
@@ -59,14 +59,14 @@ def test_augmentation_rotation_call(data: list[pt.Tensor]):
     """Test random rotations using AugmentationRotation."""
     # Test random rotations
     rng = np.random.default_rng(seed=4)
-    aug_rot = AugmentationRotation(dims=(-2, -1), rng=rng)
+    aug_rot = AugmentationRotation90(dims=(-2, -1), rng=rng)
     rotated_data = aug_rot(data)
     print(data[0].shape, rotated_data[0].shape, rng.integers(4))
     assert len(rotated_data) == len(data)
     assert all(rotated_data[ii].shape == data[ii].shape for ii in range(len(data)))
 
     rng = np.random.default_rng(seed=0)
-    aug_rot = AugmentationRotation(dims=(-2, -1), rng=rng)
+    aug_rot = AugmentationRotation90(dims=(-2, -1), rng=rng)
     rotated_data = aug_rot(data)
     assert len(rotated_data) == len(data)
     assert all(

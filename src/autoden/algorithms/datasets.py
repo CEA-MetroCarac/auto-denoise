@@ -5,12 +5,22 @@ from itertools import combinations
 from pathlib import Path
 from collections.abc import Sequence
 from typing import Any
+from warnings import warn
 
 import imageio.v3 as iio
 import numpy as np
 import torch as pt
 from numpy.typing import DTypeLike, NDArray
 from torch.utils.data import Dataset
+
+try:
+    from torchvision.transforms import RandomRotation, InterpolationMode
+
+except ImportError as exc:
+    warn("Package `torchvision` not installed. Some augmentations will not be available.")
+    __has_torchvision__ = False
+else:
+    __has_torchvision__ = True
 
 
 def data_to_tensor(
@@ -169,7 +179,7 @@ def random_flips(
     return [pt.flip(im, flip) for im in imgs]
 
 
-def random_rotations(
+def random_rotations_90(
     *imgs: pt.Tensor, dims: tuple[int, int] | None = None, rng: np.random.Generator | None = None
 ) -> Sequence[pt.Tensor]:
     """Randomly rotate images by multiples of 90 degrees.
@@ -189,7 +199,6 @@ def random_rotations(
     Sequence[torch.Tensor]
         The rotated images.
     """
-    rand_val = np.random.randint(4)
     if dims is None:
         dims = (-2, -1)
     if rng is None:
@@ -276,7 +285,7 @@ class AugmentationFlip(Augmentation):
         return random_flips(*data, flips=self.flips, rng=self.rng)
 
 
-class AugmentationRotation(Augmentation):
+class AugmentationRotation90(Augmentation):
     """Random rotation augmentation."""
 
     def __init__(self, dims: tuple[int, int] | None = None, rng: np.random.Generator | None = None) -> None:
@@ -307,7 +316,61 @@ class AugmentationRotation(Augmentation):
         Sequence[torch.Tensor]
             The rotated tensors.
         """
-        return random_rotations(*data, dims=self.dims, rng=self.rng)
+        return random_rotations_90(*data, dims=self.dims, rng=self.rng)
+
+
+class AugmentationRotationAny(Augmentation):
+    """Random rotation augmentation."""
+
+    def __init__(
+        self, dims: tuple[int, int] | None = None, step: int | None = None, rng: np.random.Generator | None = None
+    ) -> None:
+        """Initialize the rotation augmentation class.
+
+        Parameters
+        ----------
+        dims : tuple[int, int]
+            The dimensions to rotate, by default (-2, -1)
+        rng : np.random.Generator | None, optional
+            The random number generator to use. If None, a default generator will be used.
+            By default None.
+        """
+        if not __has_torchvision__:
+            raise ValueError(f"Cannot instantiate {self.__class__.__name__} when `torchvision` is not available")
+
+        super().__init__(rng)
+
+        self.dims = dims
+        self.step = step
+
+    def __call__(self, data: Sequence[pt.Tensor]) -> Sequence[pt.Tensor]:
+        """Randomly rotate images.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            The input tensors
+
+        Returns
+        -------
+        Sequence[torch.Tensor]
+            The rotated tensors.
+        """
+        dims = self.dims
+        rng = self.rng
+
+        if dims is None:
+            dims = (-2, -1)
+        if rng is None:
+            rng = np.random.default_rng()
+
+        if self.step is None:
+            rand_val = rng.uniform(0, 360)
+        else:
+            rand_val = rng.integers(0, 360 // self.step) * self.step
+        rot = RandomRotation(rand_val, interpolation=InterpolationMode.BILINEAR)
+
+        return [rot(im) for im in data]
 
 
 class AugmentationGaussianNoise(Augmentation):
@@ -569,8 +632,12 @@ class DatasetsList(Dataset):
                 return aug
             if aug.lower() == "flip":
                 return AugmentationFlip()
-            if aug.lower() == "rot":
-                return AugmentationRotation()
+            if aug.lower() in ("rot", "rot90"):
+                return AugmentationRotation90()
+            if aug.lower() == "rot45":
+                return AugmentationRotationAny(step=45)
+            if aug.lower() == "rot_any":
+                return AugmentationRotationAny()
             raise ValueError(f"Unrecognized augmentation: {aug}")
 
         self.datasets = list(datasets)
