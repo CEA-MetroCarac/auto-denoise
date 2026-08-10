@@ -494,11 +494,11 @@ def train_sparsity(
     else:
         sched = None
 
-    dset_trn = DatasetNumpy(data_trn, device)
+    dset_trn = DatasetNumpy(data_trn, device, pre_load_device=False)
     dsets_list_trn = DatasetsList([dset_trn], augmentation=augmentation)
     dl_trn = DataLoader(dsets_list_trn, batch_size=batch_size, shuffle=True)
 
-    dset_val = DatasetNumpy(data_val, device)
+    dset_val = DatasetNumpy(data_val, device, pre_load_device=False)
     dsets_list_val = DatasetsList([dset_val], augmentation=augmentation)
     dl_val = DataLoader(dsets_list_val, batch_size=batch_size)
 
@@ -511,7 +511,7 @@ def train_sparsity(
         total_trn = 0.0
         sparsity_trn = 0.0
         for (x,) in dl_trn:
-            Wx = fb.analyze(x)  # (B, m, H, W)
+            Wx = fb.analyze(x)[:, 1:]  # (B, m, H, W)
             loss_trn = Wx.abs().mean()
             sparsity_trn += float(loss_trn.item())
 
@@ -533,7 +533,7 @@ def train_sparsity(
         with pt.inference_mode():
             sparsity_val = 0.0
             for (x,) in dl_val:
-                Wx = fb.analyze(x)  # (B, m, H, W)
+                Wx = fb.analyze(x)[:, 1:]  # (B, m, H, W)
                 loss_val = Wx.abs().mean()
                 sparsity_val += loss_val.item()
         history["sparsity_val"][epoch - 1] = sparsity_val / len(dl_val)
