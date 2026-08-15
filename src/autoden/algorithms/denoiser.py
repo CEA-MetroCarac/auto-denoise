@@ -17,7 +17,14 @@ import torch as pt
 from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
-from autoden.algorithms.datasets import data_to_tensor, get_batches, Augmentation, DatasetNumpy, DatasetsList
+from autoden.algorithms.datasets import (
+    data_to_tensor,
+    get_batches,
+    build_augmentation_list,
+    Augmentation,
+    DatasetNumpy,
+    DatasetsList,
+)
 from autoden.losses import LossRegularizer, LossTV
 from autoden.models.config import NetworkParams, SerializableModel, create_network, create_optimizer
 from autoden.models.io import load_model_state, save_model_state
@@ -188,7 +195,7 @@ class Denoiser(ABC):
     model: pt.nn.Module
     device: str
     batch_size: int | None
-    augmentation: str | Augmentation | Sequence[str | Augmentation] | None
+    augmentation: list[Augmentation]
 
     save_epochs_dir: str | None
     verbose: bool
@@ -235,19 +242,12 @@ class Denoiser(ABC):
         if verbose:
             get_num_parameters(self.model, verbose=True)
 
-        # if augmentation is None:
-        #     augmentation = []
-        # elif isinstance(augmentation, str):
-        #     augmentation = [augmentation.lower()]
-        # elif isinstance(augmentation, Sequence):
-        #     augmentation = [str(a).lower() for a in augmentation]
-
         self.data_sb = data_scale_bias
 
         self.reg_val = reg_val
         self.device = device
         self.batch_size = batch_size
-        self.augmentation = augmentation
+        self.augmentation = build_augmentation_list(augmentation)
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 

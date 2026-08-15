@@ -500,6 +500,40 @@ class AugmentationPoissonNoise(Augmentation):
         return noisy_data
 
 
+def _convert_augmentation(aug: str | Augmentation) -> Augmentation:
+    if isinstance(aug, Augmentation):
+        return aug
+    if aug.lower() == "flip":
+        return AugmentationFlip()
+    if aug.lower() in ("rot", "rot90"):
+        return AugmentationRotation90()
+    if aug.lower() == "rot45":
+        return AugmentationRotationAny(step=45)
+    if aug.lower() == "rot_any":
+        return AugmentationRotationAny()
+    raise ValueError(f"Unrecognized augmentation: {aug}")
+
+
+def build_augmentation_list(augmentation: str | Augmentation | Sequence[str | Augmentation] | None) -> list[Augmentation]:
+    """Build list of augmentations, from all accepted arguments.
+
+    Parameters
+    ----------
+    augmentation : str | Augmentation | Sequence[str  |  Augmentation] | None
+        The requested augmentations
+
+    Returns
+    -------
+    list[Augmentation]
+        The list of normalized augmentations
+    """
+    if augmentation is None:
+        augmentation = []
+    elif isinstance(augmentation, str | Augmentation):
+        augmentation = [augmentation]
+    return [_convert_augmentation(aug) for aug in augmentation]
+
+
 class DataHandler(Dataset, ABC):
     """Provide base interface."""
 
@@ -627,26 +661,8 @@ class DatasetsList(Dataset):
     ) -> None:
         super().__init__()
 
-        def _convert_augmentation(aug: str | Augmentation) -> Augmentation:
-            if isinstance(aug, Augmentation):
-                return aug
-            if aug.lower() == "flip":
-                return AugmentationFlip()
-            if aug.lower() in ("rot", "rot90"):
-                return AugmentationRotation90()
-            if aug.lower() == "rot45":
-                return AugmentationRotationAny(step=45)
-            if aug.lower() == "rot_any":
-                return AugmentationRotationAny()
-            raise ValueError(f"Unrecognized augmentation: {aug}")
-
         self.datasets = list(datasets)
-
-        if augmentation is None:
-            augmentation = []
-        elif isinstance(augmentation, str | Augmentation):
-            augmentation = [augmentation]
-        self.augmentation = [_convert_augmentation(aug) for aug in augmentation]
+        self.augmentation = build_augmentation_list(augmentation)
 
         if not self.datasets:
             raise ValueError("The argument `datasets` cannot be an empty Sequence")
