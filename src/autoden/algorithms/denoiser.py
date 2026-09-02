@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from warnings import warn
 
 import matplotlib.pyplot as plt
@@ -447,7 +447,7 @@ class Denoiser(ABC):
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
         accum_grads: bool = False,
-        loss_track_type: str = "tst",
+        criterion: Literal["iter", "trn", "trn_data", "tst", "tst_sbi"] = "tst",
     ) -> dict[str, NDArray]:
         if epochs < 1:
             raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
@@ -537,8 +537,11 @@ class Denoiser(ABC):
                 losses["tst_sbi"].append(loss_tst_sbi.item())
 
             # Check improvement
-            if losses[loss_track_type][-1] < best_loss:
-                best_loss = losses[loss_track_type][-1]
+            if (criterion == "iter") or (losses[criterion][-1] < best_loss):
+                if criterion == "iter":
+                    best_loss = losses["trn_data"][-1]
+                else:
+                    best_loss = losses[criterion][-1]
                 best_epoch = epoch
                 best_state = deepcopy(self.model.state_dict())
                 best_optim = deepcopy(optim.state_dict())
@@ -549,7 +552,7 @@ class Denoiser(ABC):
 
         self.model.load_state_dict(best_state)
 
-        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
+        print(f"Best epoch: {best_epoch}, with loss_{criterion}: {best_loss:.5}")
         if self.save_epochs_dir:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 
@@ -567,7 +570,7 @@ class Denoiser(ABC):
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
         accum_grads: bool = False,
-        loss_track_type: str = "tst",
+        criterion: Literal["iter", "trn", "trn_data", "tst", "tst_sbi"] = "tst",
     ) -> dict[str, NDArray]:
         if epochs < 1:
             raise ValueError(f"Number of epochs should be >= 1, but {epochs} was passed")
@@ -667,8 +670,11 @@ class Denoiser(ABC):
             losses["tst_sbi"].append(loss_val_tst_sbi)
 
             # Check improvement
-            if losses[loss_track_type][-1] < best_loss:
-                best_loss = losses[loss_track_type][-1]
+            if (criterion == "iter") or (losses[criterion][-1] < best_loss):
+                if criterion == "iter":
+                    best_loss = losses["trn_data"][-1]
+                else:
+                    best_loss = losses[criterion][-1]
                 best_epoch = epoch
                 best_state = deepcopy(self.model.state_dict())
                 best_optim = deepcopy(optim.state_dict())
@@ -679,7 +685,7 @@ class Denoiser(ABC):
 
         self.model.load_state_dict(best_state)
 
-        print(f"Best epoch: {best_epoch}, with loss_{loss_track_type}: {best_loss:.5}")
+        print(f"Best epoch: {best_epoch}, with loss_{criterion}: {best_loss:.5}")
         if self.save_epochs_dir is not None:
             self._save_state(epoch_num=best_epoch, optim_state=best_optim, is_best=True)
 

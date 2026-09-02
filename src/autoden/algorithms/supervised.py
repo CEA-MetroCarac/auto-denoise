@@ -100,6 +100,7 @@ class Supervised(Denoiser):
         lower_limit: float | NDArray | None = None,
         restarts: int | None = None,
         accum_grads: bool = False,
+        criterion: Literal["iter", "trn", "trn_data", "tst", "tst_sbi"] = "tst",
     ) -> dict[str, NDArray]:
         """Supervised training.
 
@@ -126,6 +127,8 @@ class Supervised(Denoiser):
         accum_grads : bool, optional
             Whether to accumulate gradients over multiple batches. If True, gradients will be accumulated over multiple
             batches before updating the model parameters. Default is False.
+        criterion : Literal["iter", "trn", "trn_data", "tst", "tst_sbi"], optional
+            The solution selection criterion. By default it tracks the test loss.
 
         Returns
         -------
@@ -166,6 +169,7 @@ class Supervised(Denoiser):
                 lower_limit=lower_limit,
                 restarts=restarts,
                 accum_grads=accum_grads,
+                criterion=criterion,
             )
         elif isinstance(tst_inds, np.ndarray):
             losses = self._train_pixelmask_batched(
@@ -179,6 +183,7 @@ class Supervised(Denoiser):
                 lower_limit=lower_limit,
                 restarts=restarts,
                 accum_grads=accum_grads,
+                criterion=criterion,
             )
         else:
             raise ValueError(
