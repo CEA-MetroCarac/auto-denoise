@@ -196,6 +196,7 @@ class Denoiser(ABC):
     device: str
     batch_size: int | None
     augmentation: list[Augmentation]
+    lazy_device_load: bool
 
     save_epochs_dir: str | None
     verbose: bool
@@ -208,6 +209,7 @@ class Denoiser(ABC):
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         batch_size: int | None = None,
         augmentation: str | Augmentation | Sequence[str | Augmentation] | None = None,
+        lazy_device_load: bool = False,
         save_epochs_dir: str | None = None,
         verbose: bool = True,
     ) -> None:
@@ -248,6 +250,7 @@ class Denoiser(ABC):
         self.device = device
         self.batch_size = batch_size
         self.augmentation = build_augmentation_list(augmentation)
+        self.lazy_device_load = lazy_device_load
         self.save_epochs_dir = save_epochs_dir
         self.verbose = verbose
 
@@ -416,12 +419,21 @@ class Denoiser(ABC):
             inp = inp * self.data_sb.scale_inp - self.data_sb.bias_inp
 
         channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
-        inp_t = data_to_tensor(inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
+        dset_inp = DatasetNumpy(
+            inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp, pre_load_device=not self.lazy_device_load
+        )
+        dset_d = DatasetsList([dset_inp])
+        batches = get_batches(len(dset_d), batch_size=self.batch_size)
 
+        output: list[NDArray] | NDArray = []
         self.model.eval()
         with pt.inference_mode():
-            out_t: pt.Tensor = self.model(inp_t)
-            output = out_t.squeeze(dim=(0, 1)).to("cpu").numpy()
+            for batch in batches:
+                # Batch selection
+                (inp_t,) = dset_d[batch]
+                out_t: pt.Tensor = self.model(inp_t)
+                output.append(out_t.squeeze(dim=(0, 1)).to("cpu").numpy())
+        output = np.concatenate(output, axis=0)
 
         # Rescale output
         if self.data_sb is not None:
@@ -470,11 +482,13 @@ class Denoiser(ABC):
         channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
         channel_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        inp_trn_d = DatasetNumpy(dset_trn[0], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
-        tgt_trn_d = DatasetNumpy(dset_trn[1], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
+        device_opts: dict = dict(device=self.device, pre_load_device=not self.lazy_device_load)
 
-        inp_tst_t = data_to_tensor(dset_tst[0], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
-        tgt_tst_t = data_to_tensor(dset_tst[1], device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
+        inp_trn_d = DatasetNumpy(dset_trn[0], n_dims=self.n_dims, channel_axis=channel_ax_inp, **device_opts)
+        tgt_trn_d = DatasetNumpy(dset_trn[1], n_dims=self.n_dims, channel_axis=channel_ax_tgt, **device_opts)
+
+        inp_tst_t = data_to_tensor(dset_tst[0], n_dims=self.n_dims, channel_axis=channel_ax_inp, device=self.device)
+        tgt_tst_t = data_to_tensor(dset_tst[1], n_dims=self.n_dims, channel_axis=channel_ax_tgt, device=self.device)
         tgt_tst_t_sbi = (tgt_tst_t - tgt_tst_t.mean()) / (tgt_tst_t.std() + 1e-5)
 
         dset_trn_d = DatasetsList((inp_trn_d, tgt_trn_d), augmentation=self.augmentation)
@@ -594,13 +608,15 @@ class Denoiser(ABC):
         channel_ax_inp = -self.n_dims - 1 if self.n_channels_in > 1 else None
         channel_ax_tgt = -self.n_dims - 1 if self.n_channels_out > 1 else None
 
-        inp_d = DatasetNumpy(inp, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_inp)
-        tgt_d = DatasetNumpy(tgt, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt)
+        device_opts: dict = dict(device=self.device, pre_load_device=not self.lazy_device_load)
+
+        inp_d = DatasetNumpy(inp, n_dims=self.n_dims, channel_axis=channel_ax_inp, **device_opts)
+        tgt_d = DatasetNumpy(tgt, n_dims=self.n_dims, channel_axis=channel_ax_tgt, **device_opts)
 
         mask_trn = np.logical_not(mask_tst)
 
-        mask_trn_d = DatasetNumpy(mask_trn, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
-        mask_tst_d = DatasetNumpy(mask_tst, device=self.device, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None)
+        mask_trn_d = DatasetNumpy(mask_trn, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None, **device_opts)
+        mask_tst_d = DatasetNumpy(mask_tst, n_dims=self.n_dims, channel_axis=channel_ax_tgt, dtype=None, **device_opts)
 
         dset_d = DatasetsList((inp_d, tgt_d, mask_trn_d, mask_tst_d), augmentation=self.augmentation)
         num_instances = len(dset_d)
