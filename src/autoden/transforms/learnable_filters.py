@@ -14,6 +14,7 @@ import torch as pt
 import torch.nn as nn
 from numpy.typing import NDArray
 from torch.utils.data import DataLoader
+from tqdm.auto import trange
 
 from autoden.algorithms.datasets import DatasetNumpy, DatasetsList
 from autoden.transforms.custom_filters import ConvolutionalDecompositionBase, CustomFilterDecomposition
@@ -102,6 +103,9 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         if shape_ref is None:
             shape_ref = (64,) * n_dims
         self.shape_ref = shape_ref
+
+    @abstractmethod
+    def trainable_params(self) -> list: ...
 
     @abstractmethod
     def get_F(self) -> pt.Tensor: ...
@@ -206,6 +210,18 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         emb[tuple(slices)] = w[:, 0]  # embed (grayscale)
         axes = tuple([*(range(-self.n_dims, 0))])
         return pt.fft.fftn(emb, dim=axes).abs().pow(2)
+
+    def get_fourier_freqs(self, ord: int = 2) -> pt.Tensor:
+        """Return the Fourier power spectrum of the filters.
+
+        Returns
+        -------
+        pt.Tensor
+            The Fourier power spectrum of the filters.
+        """
+        coords = [pt.fft.fftfreq(s) for s in self.shape_ref]
+        coords = pt.meshgrid(*coords, indexing="ij")
+        return pt.linalg.vector_norm(pt.stack(coords, dim=0), dim=0, ord=ord)
 
     def fourier_penalty(self) -> pt.Tensor:
         """Return the Fourier penalty.
@@ -313,7 +329,7 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         print(f"   Filter energies ||q_i||^2: min={energies.min():.6f} max={energies.max():.6f}")
 
     @pt.no_grad()
-    def plot_filters(self, fourier_space: bool = False, print_freqs: bool = True):
+    def plot_filters(self, fourier_space: bool = False, print_freqs: bool = True, freq_norm: int = 2):
         """Plot the filters.
 
         Parameters
@@ -334,13 +350,13 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
             filters = filters.mean(axis=1)
         vminmax = dict(vmin=float(filters.min()), vmax=float(filters.max()))
 
-        filt_freqs = self.get_filter_freq().flatten()
+        filt_freqs = self.get_filter_freq(ord=freq_norm).flatten()
 
         fig, axs = plt.subplots(self.k, self.k * self.in_ch, sharex=True, sharey=True, figsize=(7, 8.25))
         for ii in range(self.m):
             axs.flatten()[ii].imshow(filters[ii], **vminmax)
             if print_freqs:
-                axs.flatten()[ii].set_title(f"f = {filt_freqs[ii]:.3}")
+                axs.flatten()[ii].set_title(f"$l_{freq_norm}(f/f_n)$ = {filt_freqs[ii]:.3}")
         fig.tight_layout()
         plt.show()
 
@@ -348,6 +364,7 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
 class ParsevalFilterBankND(LearnableParsevalFilterBank):
     """N-dimensional Parseval filterbank."""
 
+    A: nn.Parameter
     q0: pt.Tensor
     V: pt.Tensor
 
@@ -401,6 +418,9 @@ class ParsevalFilterBankND(LearnableParsevalFilterBank):
         A = pt.empty(self.m - 1, self.d - 1)
         nn.init.orthogonal_(A)
         self.A = nn.Parameter(A)
+
+    def trainable_params(self) -> list:
+        return [self.A]
 
     def get_F(self) -> pt.Tensor:
         """Return F in R^{m x d} with FF^T = I_m and F[0] = q_0.
@@ -503,10 +523,12 @@ def train_sparsity(
     dl_val = DataLoader(dsets_list_val, batch_size=batch_size)
 
     if verbose:
-        print(f"  [Sparsity loss] {n_epochs} epochs (batch size={batch_size}), m={fb.m}, k={fb.k}")
+        n_p = sum(p.numel() for p in fb.trainable_params())
+        print(f"Sparsity-based training, {n_epochs=}, ({batch_size=}), k={fb.k}, m={fb.m}, n. params: {n_p}")
+
     history = dict(loss_trn=np.zeros(n_epochs), sparsity_trn=np.zeros(n_epochs), sparsity_val=np.zeros(n_epochs))
 
-    for epoch in range(1, n_epochs + 1):
+    for epoch in trange(1, n_epochs + 1, desc="Training"):
         fb.train()
         total_trn = 0.0
         sparsity_trn = 0.0
@@ -541,7 +563,7 @@ def train_sparsity(
         if verbose and (epoch % 10 == 0 or epoch == 1):
             ge = fb.gram_error()
             print(
-                f"    epoch {epoch:3d}: Train Sparsity l_1={sparsity_trn/len(dl_trn):.7f}, Loss={total_trn/len(dl_trn):.7f}, "
-                f"gram_err={ge:.2e}, Validation Sparsity l_1={sparsity_val/len(dl_val):.7f}"
+                f"  epoch {epoch:3d}/{n_epochs}:  train l_1={sparsity_trn/len(dl_trn):.7f}, loss={total_trn/len(dl_trn):.7f}, "
+                f"gram_err={ge:.2e}, val l_1={sparsity_val/len(dl_val):.7f}"
             )
     return fb, history
