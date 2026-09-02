@@ -239,13 +239,8 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
         power = self.get_fourier_filter_power_spectrum()
         return ((power.sum(dim=0) - float(self.m)) ** 2).sum()
 
-    def fourier_spectrum_penalty(self, use_tanh: bool = False) -> pt.Tensor:
+    def fourier_spectrum_penalty(self) -> pt.Tensor:
         """Return the Fourier spectrum penalty.
-
-        Parameters
-        ----------
-        use_tanh : bool, optional
-            Whether to use tanh for the penalty (default is False).
 
         Returns
         -------
@@ -253,12 +248,10 @@ class LearnableParsevalFilterBank(ConvolutionalDecompositionBase):
             The Fourier spectrum penalty.
         """
         power = self.get_fourier_filter_power_spectrum()
-        power_cntr_norm = (float(self.m) / 2 - power) / float(self.m)
-        if use_tanh:
-            power_penalty: pt.Tensor = nn.functional.tanh(power_cntr_norm) + 0.5
-        else:
-            power_penalty = pt.exp(-(power_cntr_norm**2))
-        return power_penalty.sum()
+        power = power.reshape([self.m, -1]) / float(self.shape_ref[0])
+        ftf = power @ power.T
+        ftf = ftf - pt.diag(pt.diag(ftf))
+        return pt.abs(ftf).sum()
 
     def get_interior_error(self, x_test: pt.Tensor) -> float:
         """Return the interior error.
