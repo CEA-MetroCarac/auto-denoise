@@ -250,6 +250,7 @@ class LossCCF(LossRegularizer):
         lambda_val: float,
         filters: pt.Tensor,
         weights: pt.Tensor,
+        isotropic: bool = False,
         size_average=None,
         reduce=None,
         reduction: str = "mean",
@@ -257,9 +258,8 @@ class LossCCF(LossRegularizer):
     ) -> None:
         super().__init__(size_average, reduce, reduction)
         self.lambda_val = lambda_val
-        self.filters = filters
-        self.weights = weights
         self.min_approx = min_approx
+        self.isotropic = isotropic
 
         self.n_dims = filters.ndim - 2
 
@@ -268,7 +268,7 @@ class LossCCF(LossRegularizer):
                 f"The number of convolution kernels ({filters.shape[0]}) does"
                 f" not match the number of weights ({weights.numel()})"
             )
-
+        self.filters = filters
         self.weights = weights.reshape([1, -1, *(1,) * self.n_dims])
 
     def forward(self, img: pt.Tensor) -> pt.Tensor:
@@ -281,7 +281,11 @@ class LossCCF(LossRegularizer):
 
         coeffs = decomp.analyze(img)
 
-        loss_vals: pt.Tensor = self.lambda_val * (weights * coeffs).abs().sum(1).sum(axes)
+        if self.isotropic:
+            local_vals = pt.linalg.vector_norm(pt.sqrt(weights) * coeffs, dim=1, ord=2)
+        else:
+            local_vals = pt.linalg.vector_norm(weights * coeffs, dim=1, ord=1)
+        loss_vals: pt.Tensor = self.lambda_val * local_vals.sum(axes)
 
         if self.reduction.lower() == "mean":
             return loss_vals.mean()
