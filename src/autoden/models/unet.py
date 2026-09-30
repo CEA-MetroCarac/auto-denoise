@@ -9,7 +9,6 @@ from typing import overload, Literal
 import torch as pt
 import torch.nn as nn
 
-
 PAD_MODES = ("zeros", "replicate", "reflect", "circular")
 
 NDConv = {1: nn.Conv1d, 2: nn.Conv2d, 3: nn.Conv3d}
@@ -95,6 +94,42 @@ class DoubleConv(nn.Sequential):
         )
 
 
+class AttentionGate(nn.Module):
+    """Attention Gate as described in the Attention U-Net paper."""
+
+    def __init__(self, in_ch: int, gating_ch: int, n_dims: int = 2, pad_mode: str = "replicate"):
+        super().__init__()
+        self.n_dims = n_dims
+        self.pad_mode = pad_mode
+
+        # Convolution to reduce dimensions for attention
+        self.w_g = ConvBlock(gating_ch, gating_ch, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True)
+        self.w_x = ConvBlock(in_ch, gating_ch, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True, bias=False)
+        self.psi = nn.Sequential(
+            NDBatchNorm[n_dims](gating_ch),
+            nn.LeakyReLU(),
+            ConvBlock(gating_ch, 1, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True),
+            nn.Sigmoid(),
+        )
+        self.w = nn.Sequential(
+            ConvBlock(in_ch, in_ch, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True, bias=True),
+            NDBatchNorm[n_dims](gating_ch),
+        )
+
+    def forward(self, x: pt.Tensor, g: pt.Tensor) -> pt.Tensor:
+        # Upsample g to match x's spatial dimensions if needed
+        if g.shape[-self.n_dims :] != x.shape[-self.n_dims :]:
+            g = nn.functional.interpolate(g, size=x.shape[-self.n_dims :], mode=NDUpsampling[self.n_dims], align_corners=True)
+
+        # Compute attention coefficients
+        g_conv = self.w_g(g)
+        x_conv = self.w_x(x)
+        psi = self.psi(g_conv + x_conv)
+
+        # Apply attention to x
+        return self.w(x * psi)
+
+
 class DownBlock(nn.Sequential):
     """Down-scaling block."""
 
@@ -120,7 +155,14 @@ class UpBlock(nn.Module):
     """Up-scaling block."""
 
     def __init__(
-        self, in_ch: int, skip_ch: int | None, out_ch: int, n_dims: int = 2, linear: bool = True, pad_mode: str = "replicate"
+        self,
+        in_ch: int,
+        skip_ch: int | None,
+        out_ch: int,
+        n_dims: int = 2,
+        linear: bool = True,
+        pad_mode: str = "replicate",
+        use_gated_att: bool = True,
     ):
         super().__init__()
         self.skip_ch = skip_ch
@@ -138,6 +180,12 @@ class UpBlock(nn.Module):
                 self.skip_block = ConvBlock(in_ch, skip_ch, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode)
         else:
             n_skip = in_ch
+
+        if use_gated_att:
+            self.att_gate = AttentionGate(n_skip, in_ch, n_dims=n_dims, pad_mode=pad_mode)
+        else:
+            self.att_gate = None
+
         self.conv_block = DoubleConv(in_ch + n_skip, out_ch, n_dims=n_dims, pad_mode=pad_mode)
 
     def forward(self, x_lo_res: pt.Tensor, x_hi_res: pt.Tensor) -> pt.Tensor:
@@ -146,14 +194,16 @@ class UpBlock(nn.Module):
             slice(0, s) for s in x_hi_res.shape[-self.n_dims :]
         ]
 
-        if self.skip_ch is None:
-            x_comb = pt.cat([x_hi_res, x_lo2hi_res[tuple(lo2hi_cropping)]], dim=1)
-        elif self.skip_ch > 0:
-            x_hi_res = self.skip_block(x_hi_res)
+        if isinstance(self.skip_ch, int) and self.skip_ch <= 0:
+            x_comb = x_lo2hi_res
+        else:
+            if isinstance(self.skip_ch, int) and self.skip_ch > 0:
+                x_hi_res = self.skip_block(x_hi_res)
+
+            if self.att_gate is not None:
+                x_hi_res = self.att_gate(x_hi_res, x_lo2hi_res[tuple(lo2hi_cropping)])
 
             x_comb = pt.cat([x_hi_res, x_lo2hi_res[tuple(lo2hi_cropping)]], dim=1)
-        else:
-            x_comb = x_lo2hi_res
 
         return self.conv_block(x_comb)
 
@@ -206,6 +256,7 @@ class UNet(nn.Module):
         n_channels_skip: int | None = None,
         bilinear: bool = True,
         pad_mode: str = "replicate",
+        use_gated_att: bool = False,
         device: str = "cuda" if pt.cuda.is_available() else "cpu",
         verbose: bool = False,
     ):
@@ -229,7 +280,7 @@ class UNet(nn.Module):
             [DownBlock(*lvl, n_dims=n_dims, bilinear=bilinear, pad_mode=pad_mode) for lvl in encoder]
         )
         self.decoder_layers = nn.ModuleList(
-            [UpBlock(*lvl, n_dims=n_dims, linear=bilinear, pad_mode=pad_mode) for lvl in decoder]
+            [UpBlock(*lvl, n_dims=n_dims, linear=bilinear, pad_mode=pad_mode, use_gated_att=use_gated_att) for lvl in decoder]
         )
         self.out_layer = ConvBlock(
             n_features, n_channels_out, n_dims=n_dims, kernel_size=1, pad_mode=pad_mode, last_block=True

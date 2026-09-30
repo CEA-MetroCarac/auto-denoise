@@ -155,6 +155,7 @@ class NetworkParamsUNet(NetworkParams):
         n_dims: int = 2,
         bilinear: bool = True,
         pad_mode: str = "replicate",
+        use_gated_att: bool = False,
     ) -> None:
         """Initialize the UNet network parameters definition.
 
@@ -182,6 +183,7 @@ class NetworkParamsUNet(NetworkParams):
         self.n_channels_skip = n_channels_skip
         self.bilinear = bilinear
         self.pad_mode = pad_mode
+        self.use_gated_att = use_gated_att
 
     def get_model(self, device: str = "cuda" if is_cuda_available() else "cpu") -> Module:
         """Get a U-net model with the selected parameters.
@@ -205,6 +207,7 @@ class NetworkParamsUNet(NetworkParams):
             n_dims=self.n_dims,
             bilinear=self.bilinear,
             pad_mode=self.pad_mode,
+            use_gated_att=self.use_gated_att,
             device=device,
         )
 
